@@ -1,0 +1,30 @@
+# Local development: only PostgreSQL runs in Docker.
+# Connection settings come from .env (see .env.example).
+
+# Fixed project name: the data volume is "personal-crm_pgdata"
+# whatever the folder is called after git clone
+name: personal-crm
+
+services:
+  db:
+    # Debian-based image (not alpine) for proper glibc collation of Cyrillic names
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+    ports:
+      # Reachable only from this computer, not from the local network
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Postgres 18+ keeps data under /var/lib/postgresql/<version>/docker
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
