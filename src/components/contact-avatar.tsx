@@ -3,19 +3,17 @@ import { getInitials } from "@/lib/format";
 
 // Full class names are listed so Tailwind can find them in the source
 const colors = [
-  "bg-sky-100 text-sky-800",
-  "bg-emerald-100 text-emerald-800",
-  "bg-amber-100 text-amber-800",
-  "bg-rose-100 text-rose-800",
-  "bg-violet-100 text-violet-800",
-  "bg-teal-100 text-teal-800",
-  "bg-orange-100 text-orange-800",
-  "bg-indigo-100 text-indigo-800",
+  "bg-avatar-1",
+  "bg-avatar-2",
+  "bg-avatar-3",
+  "bg-avatar-4",
+  "bg-avatar-5",
+  "bg-avatar-6",
 ];
 
 const sizes = {
-  md: "size-10 text-sm",
-  lg: "size-14 text-lg",
+  md: "size-10 text-xl",
+  lg: "size-14 text-3xl",
 };
 
 export function ContactAvatar({
@@ -31,7 +29,8 @@ export function ContactAvatar({
     <span
       aria-hidden
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full font-medium select-none",
+        // Handwritten initials, like the step numbers on the landing
+        "flex shrink-0 items-center justify-center rounded-full font-script leading-none text-ink-2 select-none",
         sizes[size],
         colors[id % colors.length],
       )}

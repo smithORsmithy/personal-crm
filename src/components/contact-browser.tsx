@@ -85,7 +85,7 @@ export function ContactBrowser({
       {addedContact && (
         <p
           role="status"
-          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          className="rounded-lg border border-accent/30 bg-highlight px-4 py-3 text-sm text-ink-2"
         >
           Контакт «{addedContact.name}» добавлен. Он подсвечен в списке.
         </p>
@@ -94,7 +94,7 @@ export function ContactBrowser({
       <div className="relative">
         <SearchIcon
           aria-hidden
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute top-1/2 left-4.5 size-4 -translate-y-1/2 text-muted-foreground"
         />
         <Input
           type="search"
@@ -109,21 +109,25 @@ export function ContactBrowser({
           aria-label="Найти контакт по имени"
           autoComplete="off"
           spellCheck={false}
-          className="h-11 bg-background pr-10 pl-9 text-base md:text-base [&::-webkit-search-cancel-button]:hidden"
+          className="h-12 rounded-full bg-card pr-12 pl-11 text-base md:text-base [&::-webkit-search-cancel-button]:hidden"
         />
         {query && (
           <button
             type="button"
             onClick={() => changeQuery("")}
             aria-label="Очистить поиск"
-            className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <XIcon className="size-4" />
           </button>
         )}
       </div>
 
-      <p className="text-sm text-muted-foreground" aria-live="polite">
+      {/* Handwritten caption, like "знакомо?" on the landing */}
+      <p
+        className="font-script text-kicker text-accent lg:text-kicker-lg"
+        aria-live="polite"
+      >
         {isSearching
           ? `Найдено: ${formatCount(visibleContacts.length)} из ${formatCount(contacts.length)}`
           : `${formatCount(contacts.length)} ${pluralize(contacts.length, contactWord)}`}
@@ -140,13 +144,13 @@ export function ContactBrowser({
           text="Проверьте, как написано имя, или добавьте новый контакт."
         />
       ) : (
-        <div className="overflow-hidden rounded-xl border bg-card">
-          <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-4 border-b bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground md:grid">
+        <div className="overflow-hidden rounded-lg bg-card shadow-note lg:shadow-note-lg">
+          <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-4 border-b border-dashed px-4 py-2.5 text-xs font-bold text-muted-foreground md:grid">
             <span className="pl-13">Кто</span>
             <span>Откуда знакомы</span>
             <span>Телефон и почта</span>
           </div>
-          <ul className="divide-y">
+          <ul className="divide-y divide-dashed">
             {visibleContacts.map((contact) => (
               <ContactRow
                 key={contact.id}
@@ -177,14 +181,14 @@ function ContactRow({
       <Link
         href={`/contacts/${contact.id}`}
         className={cn(
-          "grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-1 px-4 py-3 transition-colors outline-none hover:bg-muted/60 focus-visible:bg-muted md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)] md:items-center",
-          highlighted && "bg-amber-50 hover:bg-amber-100",
+          "grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-1 px-4 py-3.5 transition-colors outline-none hover:bg-muted/40 focus-visible:bg-muted/60 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(0,1fr)] md:items-center",
+          highlighted && "bg-highlight hover:bg-highlight",
         )}
       >
         <div className="flex min-w-0 items-center gap-3">
           <ContactAvatar id={contact.id} name={contact.name} />
           <div className="min-w-0">
-            <div className="truncate font-medium">{contact.name}</div>
+            <div className="truncate font-bold">{contact.name}</div>
             {contact.about && (
               <div className="truncate text-sm text-muted-foreground">
                 {contact.about}
@@ -210,8 +214,9 @@ function ContactRow({
 
 function EmptyState({ title, text }: { title: string; text: string }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-card px-6 py-12 text-center">
-      <p className="font-medium">{title}</p>
+    // Dashed frame, like the "works everywhere" plate on the landing
+    <div className="flex flex-col items-center gap-3 rounded-lg border-[1.5px] border-dashed border-input px-6 py-12 text-center">
+      <p className="text-section">{title}</p>
       <p className="max-w-sm text-sm text-muted-foreground">{text}</p>
       <Link
         href="/contacts/new"

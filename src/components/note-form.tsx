@@ -51,7 +51,7 @@ export function NoteForm({
         {state.savedAt && !pending ? (
           <span
             role="status"
-            className="flex items-center gap-1 text-sm text-emerald-700"
+            className="flex items-center gap-1 text-sm font-bold text-success"
           >
             <CheckIcon className="size-4" aria-hidden />
             Заметка сохранена

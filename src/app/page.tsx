@@ -17,7 +17,7 @@ export default function ContactsPage({ searchParams }: PageProps<"/">) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Контакты</h1>
+        <h1 className="text-title lg:text-title-lg">Контакты</h1>
         <Link href="/contacts/new" className={buttonVariants({ size: "lg" })}>
           <UserPlusIcon />
           Добавить контакт
@@ -49,9 +49,9 @@ function ContactsSkeleton() {
   return (
     <div className="flex flex-col gap-4" aria-busy="true">
       <span className="sr-only">Загружаю контакты…</span>
-      <Skeleton className="h-11 w-full bg-background" />
-      <Skeleton className="h-5 w-32" />
-      <div className="divide-y rounded-xl border bg-card">
+      <Skeleton className="h-12 w-full rounded-full bg-card" />
+      <Skeleton className="h-6 w-32" />
+      <div className="divide-y divide-dashed rounded-lg bg-card shadow-note lg:shadow-note-lg">
         {Array.from({ length: 8 }, (_, index) => (
           <div key={index} className="flex items-center gap-3 px-4 py-3">
             <Skeleton className="size-10 rounded-full" />

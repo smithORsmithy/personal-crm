@@ -41,8 +41,8 @@ async function EditContact({
   return (
     <>
       <BackLink href={`/contacts/${id}`}>{contact.name}</BackLink>
-      <section className="rounded-xl border bg-card p-5 sm:p-6">
-        <h1 className="mb-6 text-2xl font-semibold tracking-tight">
+      <section className="rounded-lg bg-card p-5 shadow-note sm:p-7 lg:shadow-note-lg">
+        <h1 className="mb-6 text-title lg:text-title-lg">
           Изменить контакт
         </h1>
         <ContactForm
@@ -62,7 +62,7 @@ function EditContactSkeleton() {
     <div className="flex flex-col gap-5" aria-busy="true">
       <span className="sr-only">Загружаю контакт…</span>
       <Skeleton className="h-5 w-40" />
-      <div className="flex flex-col gap-5 rounded-xl border bg-card p-5 sm:p-6">
+      <div className="flex flex-col gap-5 rounded-lg bg-card p-5 shadow-note sm:p-7 lg:shadow-note-lg">
         <Skeleton className="h-8 w-56" />
         {Array.from({ length: 4 }, (_, index) => (
           <Skeleton key={index} className="h-14" />

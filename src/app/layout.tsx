@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Manrope, Marck_Script } from "next/font/google";
 import Link from "next/link";
-import { BookUserIcon } from "lucide-react";
 
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+// The same fonts as on the landing
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin", "cyrillic"],
+});
+
+const marckScript = Marck_Script({
+  variable: "--font-marck-script",
+  weight: "400",
   subsets: ["latin", "cyrillic"],
 });
 
@@ -20,16 +26,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ru" className={`${inter.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col bg-muted/40">
-        <header className="border-b bg-background">
-          <div className="mx-auto flex h-14 w-full max-w-5xl items-center px-4">
+    <html
+      lang="ru"
+      className={`${manrope.variable} ${marckScript.variable} h-full antialiased`}
+    >
+      <body className="flex min-h-full flex-col">
+        <header className="border-b border-dashed">
+          <div className="mx-auto flex h-16 w-full max-w-5xl items-center px-4 lg:h-20">
+            {/* The wordmark from the landing */}
             <Link
               href="/"
-              className="flex items-center gap-2 font-semibold tracking-tight"
+              className="text-logo outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ring lg:text-logo-lg"
             >
-              <BookUserIcon className="size-5 text-primary" aria-hidden />
-              Личная CRM
+              личная crm
             </Link>
           </div>
         </header>

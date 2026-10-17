@@ -52,12 +52,12 @@ async function ContactCard({
 
       <section
         aria-labelledby="notes-title"
-        className="flex flex-col gap-5 rounded-xl border bg-card p-5 sm:p-6"
+        className="flex flex-col gap-5 rounded-lg bg-card p-5 shadow-note sm:p-7 lg:shadow-note-lg"
       >
-        <h2 id="notes-title" className="text-lg font-semibold">
+        <h2 id="notes-title" className="text-section">
           Заметки{" "}
           {notes.length > 0 && (
-            <span className="font-normal text-muted-foreground">
+            <span className="font-script text-kicker font-normal text-accent">
               {notes.length}
             </span>
           )}
@@ -71,16 +71,17 @@ async function ContactCard({
             и контекст не потеряется.
           </p>
         ) : (
-          <ol className="flex flex-col gap-3">
+          <ol className="flex flex-col divide-y divide-dashed border-t border-dashed">
             {notes.map((note) => (
-              <li key={note.id} className="rounded-lg border bg-muted/30 p-4">
+              <li key={note.id} className="py-4 last:pb-0">
+                {/* Handwritten date, like the second line of the landing's note */}
                 <time
                   dateTime={note.createdAt.toISOString()}
-                  className="text-xs text-muted-foreground"
+                  className="font-script text-kicker text-accent"
                 >
                   {formatDateTime(note.createdAt)}
                 </time>
-                <p className="mt-1 text-sm leading-relaxed break-words whitespace-pre-wrap">
+                <p className="mt-1 leading-relaxed break-words whitespace-pre-wrap text-ink-2">
                   {note.body}
                 </p>
               </li>
@@ -94,15 +95,20 @@ async function ContactCard({
 
 function ContactDetails({ contact }: { contact: Contact }) {
   return (
-    <section className="rounded-xl border bg-card p-5 sm:p-6">
+    <section className="relative rounded-lg bg-card p-5 shadow-note sm:p-7 lg:shadow-note-lg">
+      {/* A strip of tape, like on the landing's paper note */}
+      <span
+        aria-hidden
+        className="absolute -top-2.5 left-1/2 -ml-10.5 h-5.5 w-21 rotate-2 bg-tape lg:-top-3 lg:-ml-12.5 lg:h-6 lg:w-25"
+      />
       <div className="flex items-start gap-3 sm:gap-4">
         <ContactAvatar id={contact.id} name={contact.name} size="lg" />
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold tracking-tight break-words">
+          <h1 className="text-title break-words lg:text-title-lg">
             {contact.name}
           </h1>
           {contact.about && (
-            <p className="mt-1 break-words text-muted-foreground">
+            <p className="mt-1 font-script text-kicker break-words text-accent lg:text-kicker-lg">
               {contact.about}
             </p>
           )}
@@ -110,19 +116,22 @@ function ContactDetails({ contact }: { contact: Contact }) {
         {/* On a phone only the pencil icon is shown to leave room for the name */}
         <Link
           href={`/contacts/${contact.id}/edit`}
-          className={buttonVariants({ variant: "outline", className: "max-sm:px-2" })}
+          className={buttonVariants({
+            variant: "outline",
+            className: "max-sm:w-10 max-sm:px-0",
+          })}
         >
           <PencilIcon />
           <span className="max-sm:sr-only">Изменить</span>
         </Link>
       </div>
 
-      <dl className="mt-6 grid gap-5 sm:grid-cols-2">
+      <dl className="mt-6 grid gap-5 border-t border-dashed pt-6 sm:grid-cols-2">
         <DetailItem icon={<PhoneIcon />} label="Телефон">
           {contact.phone && (
             <a
               href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}
-              className="hover:underline"
+              className="underline-offset-4 hover:underline"
             >
               {contact.phone}
             </a>
@@ -130,7 +139,10 @@ function ContactDetails({ contact }: { contact: Contact }) {
         </DetailItem>
         <DetailItem icon={<MailIcon />} label="Почта">
           {contact.email && (
-            <a href={`mailto:${contact.email}`} className="hover:underline">
+            <a
+              href={`mailto:${contact.email}`}
+              className="underline-offset-4 hover:underline"
+            >
               {contact.email}
             </a>
           )}
@@ -162,7 +174,7 @@ function DetailItem({
 }) {
   return (
     <div className={className}>
-      <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground [&_svg]:size-3.5">
+      <dt className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground [&_svg]:size-3.5">
         {icon}
         {label}
       </dt>
@@ -177,7 +189,7 @@ function ContactSkeleton() {
   return (
     <div className="flex flex-col gap-5" aria-busy="true">
       <span className="sr-only">Загружаю карточку…</span>
-      <div className="rounded-xl border bg-card p-5 sm:p-6">
+      <div className="rounded-lg bg-card p-5 shadow-note sm:p-7 lg:shadow-note-lg">
         <div className="flex items-center gap-4">
           <Skeleton className="size-14 rounded-full" />
           <div className="flex flex-1 flex-col gap-2">
@@ -190,7 +202,7 @@ function ContactSkeleton() {
           <Skeleton className="h-10" />
         </div>
       </div>
-      <Skeleton className="h-56 rounded-xl bg-card" />
+      <Skeleton className="h-56 rounded-lg bg-card shadow-note" />
     </div>
   );
 }
