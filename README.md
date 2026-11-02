@@ -38,8 +38,8 @@
 Скачайте проект и перейдите в его папку:
 
 ```
-git clone https://github.com/smithORsmithy/digital-granny.git
-cd digital-granny
+git clone https://github.com/smithORsmithy/personal-crm.git
+cd personal-crm
 ```
 
 ### База данных (PostgreSQL в Docker)
