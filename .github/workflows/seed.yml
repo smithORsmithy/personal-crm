@@ -1,0 +1,46 @@
+name: Seed test data
+
+# Manual only. Fills the production database with test contacts.
+# Safe to run again: if there are contacts already, nothing changes.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+    steps:
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Seed on the server
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ssh_server() { ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" "$@"; }
+          printf '%s' "$REGISTRY_TOKEN" | ssh_server "docker login ghcr.io -u '${{ github.actor }}' --password-stdin" >/dev/null
+          status=0
+          ssh_server "/srv/crm/deploy/seed.sh" || status=$?
+          ssh_server "docker logout ghcr.io" >/dev/null || true
+          exit $status
+
+      - name: Remove the key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

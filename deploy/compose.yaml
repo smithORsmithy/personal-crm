@@ -1,0 +1,61 @@
+# Production on the server: the app and its own database.
+# Run only through deploy.sh / seed.sh, they pass the image and the .env file:
+#   docker compose -p prod -f /srv/crm/deploy/compose.yaml --env-file /srv/crm/.env ...
+
+name: prod
+
+x-db-settings: &db-settings
+  POSTGRES_HOST: db
+  POSTGRES_USER: crm
+  POSTGRES_DB: personal_crm
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /srv/crm/.env}
+
+services:
+  db:
+    # Same image as in local development
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_DB: personal_crm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /srv/crm/.env}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    # No ports: only the app container talks to the database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d personal_crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # One-off container from the new image: applies migrations and exits.
+  # Not started by "up", only by "run".
+  migrate:
+    image: ${APP_IMAGE:?APP_IMAGE is set by deploy.sh}
+    profiles: ["tools"]
+    command: ["node", "scripts/migrate.cjs"]
+    environment: *db-settings
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    image: ${APP_IMAGE:?APP_IMAGE is set by deploy.sh}
+    restart: unless-stopped
+    environment: *db-settings
+    ports:
+      # Only on this server; nginx serves it to the outside
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  pgdata:

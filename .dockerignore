@@ -1,0 +1,22 @@
+# Secrets never go into the image
+.env
+.env.*
+
+# Rebuilt inside the image
+node_modules
+.next
+scripts-dist
+*.tsbuildinfo
+next-env.d.ts
+
+# Not needed to build the app
+.git
+.github
+.claude
+docs
+specs
+deploy
+*.md
+compose.yaml
+Dockerfile
+.dockerignore
