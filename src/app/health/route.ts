@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { connection } from "next/server";
 
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { logDbError } from "@/db/log-error";
 
 // Health check for the deploy and for monitoring: 200 only when the app
@@ -12,7 +12,7 @@ export async function GET() {
   const headers = { "Cache-Control": "no-store" };
 
   try {
-    await db.execute(sql`select 1`);
+    await getDb().execute(sql`select 1`);
     return Response.json({ status: "ok", version }, { headers });
   } catch (error) {
     logDbError("Health check: database is unreachable", error);

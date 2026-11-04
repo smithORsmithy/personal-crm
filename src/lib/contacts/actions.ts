@@ -6,7 +6,7 @@ import { redirect, RedirectType } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
 
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { logDbError } from "@/db/log-error";
 import { contacts, notes } from "@/db/schema";
 
@@ -53,7 +53,7 @@ export async function createContact(
 
   let id: number;
   try {
-    const [created] = await db
+    const [created] = await getDb()
       .insert(contacts)
       .values(parsed.data)
       .returning({ id: contacts.id });
@@ -84,7 +84,7 @@ export async function updateContact(
   }
 
   try {
-    const updated = await db
+    const updated = await getDb()
       .update(contacts)
       .set(parsed.data)
       .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)))
@@ -118,7 +118,7 @@ export async function deleteContact(
 
   let deleted: { id: number } | undefined;
   try {
-    [deleted] = await db
+    [deleted] = await getDb()
       .update(contacts)
       // updated_at is the time of the last edit of the contact's data:
       // deleting and restoring do not change it
@@ -162,7 +162,7 @@ export async function restoreContact(
 
   let restored: { id: number } | undefined;
   try {
-    [restored] = await db
+    [restored] = await getDb()
       .update(contacts)
       .set({ deletedAt: null, updatedAt: sql`${contacts.updatedAt}` })
       .where(
@@ -194,7 +194,7 @@ export async function restoreContact(
 
 async function eraseDeletedContacts() {
   try {
-    const erased = await db
+    const erased = await getDb()
       .delete(contacts)
       .where(
         and(isNotNull(contacts.deletedAt), lte(contacts.deletedAt, pastUndoWindow)),
@@ -226,14 +226,14 @@ export async function addNote(
   }
 
   try {
-    const [contact] = await db
+    const [contact] = await getDb()
       .select({ id: contacts.id })
       .from(contacts)
       .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)));
     if (!contact) {
       return { body, error: "Контакт не найден: возможно, его удалили" };
     }
-    await db.insert(notes).values({ contactId: id, body: parsed.data.body });
+    await getDb().insert(notes).values({ contactId: id, body: parsed.data.body });
   } catch (error) {
     logDbError("Failed to add note", error);
     return { body, error: saveFailedMessage };
