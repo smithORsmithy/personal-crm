@@ -7,6 +7,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 
+import { logDbError } from "../src/db/log-error";
 import { getDatabaseUrl, loadEnvFile } from "../src/db/url";
 
 const MIGRATIONS_FOLDER = process.env.MIGRATIONS_DIR ?? "./drizzle";
@@ -43,6 +44,6 @@ async function appliedCount(db: ReturnType<typeof drizzle>): Promise<number> {
 }
 
 main().catch((error) => {
-  console.error("Migrations failed:", error);
+  logDbError("Migrations failed", error);
   process.exitCode = 1;
 });
