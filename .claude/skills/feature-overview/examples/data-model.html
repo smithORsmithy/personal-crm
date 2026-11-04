@@ -1,0 +1,987 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Личная CRM: модель данных входа</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,600&family=Onest:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    />
+    <style>
+      /* Layout: one reading column; the two schemas are wide cards that scroll sideways on phones. Palette follows the app's own tokens. */
+      :root {
+        --bg: #f5efe6;
+        --surface: #fffaf3;
+        --surface-muted: #fbf5ec;
+        --ink: #2a211b;
+        --muted: #6d5f53;
+        --subtle: #8a7a6b;
+        --line: #e6dccd;
+        --line-strong: #d8c4ab;
+        --accent: #c2562f;
+        --accent-soft: #f7ddd0;
+        --ok: #3f7a4f;
+        --ok-soft: #dcebdf;
+        --serif: "Literata", Georgia, serif;
+        --sans: "Onest", system-ui, sans-serif;
+        --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --bg: #1c1713;
+          --surface: #26201b;
+          --surface-muted: #2d261f;
+          --ink: #f1e7da;
+          --muted: #c3b2a1;
+          --subtle: #9e8d7c;
+          --line: #3a3129;
+          --line-strong: #544639;
+          --accent: #e88a63;
+          --accent-soft: #4a2c1f;
+          --ok: #8cc59a;
+          --ok-soft: #22352a;
+          color-scheme: dark;
+        }
+      }
+      :root[data-theme="dark"] {
+        --bg: #1c1713;
+        --surface: #26201b;
+        --surface-muted: #2d261f;
+        --ink: #f1e7da;
+        --muted: #c3b2a1;
+        --subtle: #9e8d7c;
+        --line: #3a3129;
+        --line-strong: #544639;
+        --accent: #e88a63;
+        --accent-soft: #4a2c1f;
+        --ok: #8cc59a;
+        --ok-soft: #22352a;
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.6 var(--sans);
+      }
+      .page {
+        max-width: 980px;
+        margin: 0 auto;
+        padding-inline: 20px;
+        padding-block: 40px 72px;
+        display: grid;
+        gap: 56px;
+      }
+      header {
+        display: grid;
+        gap: 12px;
+        max-width: 680px;
+      }
+      .eyebrow {
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--subtle);
+      }
+      h1 {
+        font: 600 44px/1.06 var(--serif);
+        letter-spacing: -0.03em;
+        margin: 0;
+        text-wrap: balance;
+      }
+      h2 {
+        font: 600 30px/1.1 var(--serif);
+        letter-spacing: -0.02em;
+        margin: 0;
+        text-wrap: balance;
+      }
+      h3 {
+        font: 600 19px/1.3 var(--serif);
+        margin: 0;
+      }
+      p {
+        margin: 0;
+      }
+      .lead {
+        font-size: 18px;
+        color: var(--muted);
+      }
+      section {
+        display: grid;
+        gap: 20px;
+      }
+      .prose {
+        display: grid;
+        gap: 12px;
+        max-width: 680px;
+      }
+      .prose p,
+      .prose li {
+        color: var(--muted);
+      }
+      code,
+      .mono {
+        font-family: var(--mono);
+        font-size: 0.88em;
+      }
+      .prose code {
+        background: var(--surface-muted);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 1px 6px;
+        color: var(--ink);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 20px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .sw {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        border: 1.5px solid var(--line-strong);
+        background: var(--surface);
+      }
+      .sw.new {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .schema {
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        border-radius: 20px;
+        overflow-x: auto;
+      }
+      .schema svg {
+        display: block;
+        width: 100%;
+        min-width: 760px;
+        height: auto;
+      }
+      .scroll-hint {
+        display: none;
+        font-size: 13px;
+        color: var(--subtle);
+      }
+      @media (max-width: 800px) {
+        .scroll-hint {
+          display: block;
+        }
+      }
+
+      /* SVG styling through tokens */
+      .box {
+        fill: var(--surface-muted);
+        stroke: var(--line-strong);
+        stroke-width: 1.5;
+      }
+      .box.new {
+        fill: var(--accent-soft);
+        stroke: var(--accent);
+      }
+      .head {
+        fill: var(--line);
+      }
+      .box.new + .head,
+      .head.new {
+        fill: var(--accent);
+      }
+      .tname {
+        font: 500 14px var(--mono);
+        fill: var(--ink);
+      }
+      .tname.on-accent {
+        fill: var(--surface);
+      }
+      .tru {
+        font: 400 13px var(--sans);
+        fill: var(--muted);
+      }
+      .tru.on-accent {
+        fill: var(--surface);
+        opacity: 0.9;
+      }
+      .row {
+        font: 400 13px var(--mono);
+        fill: var(--ink);
+      }
+      .row .ru {
+        font-family: var(--sans);
+        fill: var(--muted);
+      }
+      .row.hl {
+        fill: var(--accent);
+        font-weight: 500;
+      }
+      .row.hl .ru {
+        fill: var(--accent);
+      }
+      .rowbg {
+        fill: var(--accent-soft);
+      }
+      .link {
+        fill: none;
+        stroke: var(--subtle);
+        stroke-width: 1.5;
+      }
+      .link.new {
+        stroke: var(--accent);
+        stroke-width: 2;
+      }
+      .arrow {
+        fill: var(--subtle);
+      }
+      .arrow.new {
+        fill: var(--accent);
+      }
+      .note {
+        font: 400 13px var(--sans);
+        fill: var(--subtle);
+      }
+      .note.new {
+        fill: var(--accent);
+        font-weight: 500;
+      }
+      .tag {
+        fill: var(--surface);
+        stroke: var(--line-strong);
+      }
+      .tagtext {
+        font: 500 11px var(--sans);
+        fill: var(--subtle);
+        letter-spacing: 0.04em;
+      }
+
+      /* Service tables */
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        border-radius: 16px;
+        padding: 18px 20px;
+        display: grid;
+        gap: 6px;
+        align-content: start;
+        min-width: 0;
+      }
+      .card .mono {
+        color: var(--accent);
+        font-weight: 500;
+      }
+      .card p {
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      /* Owner lookup example */
+      .lookup {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+      }
+      .who {
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        border-radius: 16px;
+        padding: 20px;
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+      .who .ask {
+        font-family: var(--mono);
+        font-size: 14px;
+        background: var(--surface-muted);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+        overflow-wrap: anywhere;
+      }
+      .who .ask b {
+        color: var(--accent);
+        font-weight: 500;
+      }
+      .result {
+        display: inline-flex;
+        align-self: start;
+        justify-self: start;
+        font-size: 14px;
+        font-weight: 500;
+        border-radius: 999px;
+        padding: 4px 12px;
+      }
+      .result.ok {
+        background: var(--ok-soft);
+        color: var(--ok);
+      }
+      .result.no {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      /* Migration steps: a real sequence, so they are numbered */
+      .steps {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 12px;
+        counter-reset: step;
+      }
+      .steps li {
+        counter-increment: step;
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        gap: 16px;
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        border-radius: 16px;
+        padding: 18px 20px;
+      }
+      .steps li::before {
+        content: counter(step);
+        font: 600 26px/1 var(--serif);
+        color: var(--subtle);
+      }
+      .steps li.changes {
+        border-color: var(--accent);
+      }
+      .steps li.changes::before {
+        color: var(--accent);
+      }
+      .steps .body {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+      }
+      .steps p {
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .chip {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-radius: 999px;
+        padding: 2px 10px;
+        margin-left: 8px;
+        vertical-align: 2px;
+      }
+
+      /* Owner assignment flow */
+      .flow {
+        display: grid;
+        gap: 0;
+        max-width: 680px;
+      }
+      .fbox {
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        border-radius: 14px;
+        padding: 14px 18px;
+        display: grid;
+        gap: 4px;
+      }
+      .fbox.q {
+        background: var(--surface-muted);
+      }
+      .fbox.stop {
+        border-color: var(--accent);
+      }
+      .fbox.go {
+        border-color: var(--ok);
+      }
+      .fbox .k {
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--subtle);
+      }
+      .fbox p {
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .down {
+        justify-self: center;
+        width: 2px;
+        height: 22px;
+        background: var(--line-strong);
+      }
+      .branches {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+      }
+      .branch {
+        display: grid;
+        gap: 8px;
+        align-content: start;
+      }
+      .blabel {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--subtle);
+        padding-left: 4px;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 15px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tablewrap {
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        border-radius: 16px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        font-weight: 500;
+        color: var(--subtle);
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td.new {
+        color: var(--accent);
+        font-weight: 500;
+      }
+      .caption {
+        font-size: 13px;
+        color: var(--subtle);
+      }
+
+      .callout {
+        border-left: 3px solid var(--accent);
+        padding: 4px 0 4px 18px;
+        max-width: 680px;
+        display: grid;
+        gap: 6px;
+      }
+      .callout p {
+        color: var(--muted);
+      }
+
+      @media (max-width: 520px) {
+        h1 {
+          font-size: 34px;
+        }
+        h2 {
+          font-size: 25px;
+        }
+        .page {
+          gap: 44px;
+          padding-inline: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <div class="eyebrow">Личная CRM · фича «Вход»</div>
+        <h1>Модель данных до и после входа</h1>
+        <p class="lead">
+          Как в базе появляется пользователь, как контакт узнаёт своего владельца и как ваши
+          нынешние контакты станут вашими после выкатки.
+        </p>
+      </header>
+
+      <section>
+        <h2>Сейчас: у данных нет хозяина</h2>
+        <div class="prose">
+          <p>
+            Четыре таблицы. Все контакты и группы общие: их видит каждый, кто открыл адрес. Две
+            группы «Друзья» не могут существовать во всём приложении.
+          </p>
+        </div>
+        <p class="scroll-hint">Схему можно листать вбок.</p>
+        <div class="schema">
+          <svg
+            viewBox="0 0 880 420"
+            role="img"
+            aria-label="Схема до входа: contacts, notes, groups, contact_groups"
+          >
+            <defs>
+              <marker
+                id="a1"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto-start-reverse"
+              >
+                <path d="M0 0 L10 5 L0 10 z" class="arrow" />
+              </marker>
+            </defs>
+            <!-- links -->
+            <path class="link" d="M290 170 H400 V246" marker-end="url(#a1)" />
+            <path class="link" d="M715 154 V200 H480 V246" marker-end="url(#a1)" />
+            <path class="link" d="M165 202 V276" marker-end="url(#a1)" />
+            <text class="note" x="178" y="244">у контакта много заметок</text>
+            <text class="note" x="440" y="374" text-anchor="middle">
+              кто в какой группе: многие ко многим
+            </text>
+
+            <!-- contacts -->
+            <rect class="box" x="40" y="30" width="250" height="172" rx="12" />
+            <path
+              class="head"
+              d="M52 30 H278 A12 12 0 0 1 290 42 V66 H40 V42 A12 12 0 0 1 52 30 Z"
+            />
+            <text class="tname" x="56" y="53">contacts</text>
+            <text class="tru" x="274" y="53" text-anchor="end">контакты</text>
+            <text class="row" x="56" y="90">id</text>
+            <text class="row" x="56" y="114">name, about, how_we_met</text>
+            <text class="row" x="56" y="138">phone, email</text>
+            <text class="row" x="56" y="162">contact_frequency</text>
+            <text class="row" x="56" y="186">last_contacted_at</text>
+
+            <!-- groups -->
+            <rect class="box" x="590" y="30" width="250" height="124" rx="12" />
+            <path
+              class="head"
+              d="M602 30 H828 A12 12 0 0 1 840 42 V66 H590 V42 A12 12 0 0 1 602 30 Z"
+            />
+            <text class="tname" x="606" y="53">groups</text>
+            <text class="tru" x="824" y="53" text-anchor="end">группы</text>
+            <text class="row" x="606" y="90">id</text>
+            <text class="row" x="606" y="114">
+              name
+              <tspan class="ru">— уникально на всех</tspan>
+            </text>
+            <text class="row" x="606" y="138">created_at</text>
+
+            <!-- contact_groups -->
+            <rect class="box" x="315" y="250" width="250" height="100" rx="12" />
+            <path
+              class="head"
+              d="M327 250 H553 A12 12 0 0 1 565 262 V286 H315 V262 A12 12 0 0 1 327 250 Z"
+            />
+            <text class="tname" x="331" y="273">contact_groups</text>
+            <text class="row" x="331" y="310">contact_id</text>
+            <text class="row" x="331" y="334">group_id</text>
+
+            <!-- notes -->
+            <rect class="box" x="40" y="280" width="250" height="124" rx="12" />
+            <path
+              class="head"
+              d="M52 280 H278 A12 12 0 0 1 290 292 V316 H40 V292 A12 12 0 0 1 52 280 Z"
+            />
+            <text class="tname" x="56" y="303">notes</text>
+            <text class="tru" x="274" y="303" text-anchor="end">заметки</text>
+            <text class="row" x="56" y="340">id</text>
+            <text class="row" x="56" y="364">contact_id</text>
+            <text class="row" x="56" y="388">body, created_at</text>
+          </svg>
+        </div>
+      </section>
+
+      <section>
+        <h2>После: у контакта и группы есть владелец</h2>
+        <div class="prose">
+          <p>
+            Появляется таблица <code>users</code>, главное в ней — почта. У контактов и групп
+            появляется поле <code>owner_id</code>: номер пользователя-хозяина. Заметки и состав
+            групп не меняются: их хозяин определяется через контакт.
+          </p>
+        </div>
+        <div class="legend">
+          <span><i class="sw new"></i>новое</span>
+          <span><i class="sw"></i>как было</span>
+        </div>
+        <p class="scroll-hint">Схему можно листать вбок.</p>
+        <div class="schema">
+          <svg
+            viewBox="0 0 880 640"
+            role="img"
+            aria-label="Схема после входа: users связан с contacts, groups и sessions через owner_id и user_id"
+          >
+            <defs>
+              <marker
+                id="a2"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto-start-reverse"
+              >
+                <path d="M0 0 L10 5 L0 10 z" class="arrow" />
+              </marker>
+              <marker
+                id="a3"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerWidth="8"
+                markerHeight="8"
+                orient="auto-start-reverse"
+              >
+                <path d="M0 0 L10 5 L0 10 z" class="arrow new" />
+              </marker>
+            </defs>
+            <!-- new links from users -->
+            <path class="link new" d="M565 92 H636" marker-end="url(#a3)" />
+            <path class="link new" d="M380 178 V214 H165 V246" marker-end="url(#a3)" />
+            <path class="link new" d="M500 178 V214 H715 V246" marker-end="url(#a3)" />
+            <text class="note new" x="600" y="84" text-anchor="middle">входы</text>
+            <text class="note new" x="272" y="206" text-anchor="middle">владелец</text>
+            <text class="note new" x="608" y="206" text-anchor="middle">владелец</text>
+            <!-- old links -->
+            <path class="link" d="M290 400 H400 V466" marker-end="url(#a2)" />
+            <path class="link" d="M715 398 V440 H480 V466" marker-end="url(#a2)" />
+            <path class="link" d="M165 422 V496" marker-end="url(#a2)" />
+
+            <!-- users -->
+            <rect class="box new" x="315" y="30" width="250" height="148" rx="12" />
+            <path
+              class="head new"
+              d="M327 30 H553 A12 12 0 0 1 565 42 V66 H315 V42 A12 12 0 0 1 327 30 Z"
+            />
+            <text class="tname on-accent" x="331" y="53">users</text>
+            <text class="tru on-accent" x="549" y="53" text-anchor="end">пользователи</text>
+            <text class="row" x="331" y="90">id</text>
+            <text class="row" x="331" y="114">
+              email
+              <tspan class="ru">— уникальна</tspan>
+            </text>
+            <text class="row" x="331" y="138">
+              name
+              <tspan class="ru">— пусто</tspan>
+            </text>
+            <text class="row" x="331" y="162">created_at</text>
+
+            <!-- sessions -->
+            <rect class="box new" x="640" y="30" width="200" height="124" rx="12" />
+            <path
+              class="head new"
+              d="M652 30 H828 A12 12 0 0 1 840 42 V66 H640 V42 A12 12 0 0 1 652 30 Z"
+            />
+            <text class="tname on-accent" x="656" y="53">sessions</text>
+            <text class="tru on-accent" x="824" y="53" text-anchor="end">входы</text>
+            <text class="row" x="656" y="90">user_id</text>
+            <text class="row" x="656" y="114">
+              token
+              <tspan class="ru">— в cookie</tspan>
+            </text>
+            <text class="row" x="656" y="138">
+              expires_at
+              <tspan class="ru">— 30 дней</tspan>
+            </text>
+
+            <!-- contacts -->
+            <rect class="box" x="40" y="250" width="250" height="172" rx="12" />
+            <path
+              class="head"
+              d="M52 250 H278 A12 12 0 0 1 290 262 V286 H40 V262 A12 12 0 0 1 52 250 Z"
+            />
+            <text class="tname" x="56" y="273">contacts</text>
+            <text class="tru" x="274" y="273" text-anchor="end">контакты</text>
+            <text class="row" x="56" y="310">id</text>
+            <rect class="rowbg" x="46" y="317" width="238" height="24" rx="6" />
+            <text class="row hl" x="56" y="334">
+              owner_id
+              <tspan class="ru">— чей контакт</tspan>
+            </text>
+            <text class="row" x="56" y="358">name, about, how_we_met</text>
+            <text class="row" x="56" y="382">phone, email</text>
+            <text class="row" x="56" y="406">contact_frequency, …</text>
+
+            <!-- groups -->
+            <rect class="box" x="590" y="250" width="250" height="148" rx="12" />
+            <path
+              class="head"
+              d="M602 250 H828 A12 12 0 0 1 840 262 V286 H590 V262 A12 12 0 0 1 602 250 Z"
+            />
+            <text class="tname" x="606" y="273">groups</text>
+            <text class="tru" x="824" y="273" text-anchor="end">группы</text>
+            <text class="row" x="606" y="310">id</text>
+            <rect class="rowbg" x="596" y="317" width="238" height="24" rx="6" />
+            <text class="row hl" x="606" y="334">
+              owner_id
+              <tspan class="ru">— чья группа</tspan>
+            </text>
+            <rect class="rowbg" x="596" y="341" width="238" height="24" rx="6" />
+            <text class="row hl" x="606" y="358">
+              name
+              <tspan class="ru">— уникально у хозяина</tspan>
+            </text>
+            <text class="row" x="606" y="382">created_at</text>
+
+            <!-- contact_groups -->
+            <rect class="box" x="315" y="470" width="250" height="100" rx="12" />
+            <path
+              class="head"
+              d="M327 470 H553 A12 12 0 0 1 565 482 V506 H315 V482 A12 12 0 0 1 327 470 Z"
+            />
+            <text class="tname" x="331" y="493">contact_groups</text>
+            <text class="tru" x="549" y="493" text-anchor="end">как было</text>
+            <text class="row" x="331" y="530">contact_id</text>
+            <text class="row" x="331" y="554">group_id</text>
+
+            <!-- notes -->
+            <rect class="box" x="40" y="500" width="250" height="124" rx="12" />
+            <path
+              class="head"
+              d="M52 500 H278 A12 12 0 0 1 290 512 V536 H40 V512 A12 12 0 0 1 52 500 Z"
+            />
+            <text class="tname" x="56" y="523">notes</text>
+            <text class="tru" x="274" y="523" text-anchor="end">как было</text>
+            <text class="row" x="56" y="560">id</text>
+            <text class="row" x="56" y="584">contact_id</text>
+            <text class="row" x="56" y="608">body, created_at</text>
+          </svg>
+        </div>
+
+        <h3>Служебные таблицы входа</h3>
+        <div class="cards">
+          <div class="card">
+            <span class="mono">verifications</span>
+            <p>
+              Ссылки из писем, пока ими не воспользовались. Живут 15 минут. После входа ссылка
+              удаляется, поэтому второй раз не сработает.
+            </p>
+          </div>
+          <div class="card">
+            <span class="mono">login_link_requests</span>
+            <p>
+              Журнал: когда и на какую почту ушло письмо. По нему считается лимит «не больше 3 писем
+              за 10 минут».
+            </p>
+          </div>
+          <div class="card">
+            <span class="mono">accounts</span>
+            <p>
+              Нужна библиотеке входа Better Auth. Паролей у нас нет, поэтому в ней почти ничего не
+              хранится.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Как добавился пользователь</h2>
+        <div class="prose">
+          <p>
+            Пользователь — это строка в <code>users</code> с почтой. Отдельной регистрации нет:
+            строка создаётся сама, когда человек впервые открывает ссылку из письма.
+          </p>
+          <p>
+            Вход на устройстве — это строка в <code>sessions</code>. Браузер хранит её номер в
+            cookie, и по нему приложение узнаёт вас на каждой странице. Компьютер и телефон — две
+            разные строки. «Выйти» удаляет только строку этого устройства.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Как контакт узнаёт владельца</h2>
+        <div class="prose">
+          <p>
+            К каждому запросу в базу добавляется условие «и владелец — тот, кто вошёл». Пример: Иван
+            Петров — контакт №15 у пользователя A. Оба открывают ссылку <code>/contacts/15</code>.
+          </p>
+        </div>
+        <div class="lookup">
+          <div class="who">
+            <h3>Вошёл A</h3>
+            <div class="ask">найди контакт №15 <b>у a@test.ru</b></div>
+            <span class="result ok">Нашёлся: карточка Ивана</span>
+          </div>
+          <div class="who">
+            <h3>Вошёл B</h3>
+            <div class="ask">найди контакт №15 <b>у b@test.ru</b></div>
+            <span class="result no">Не нашёлся: «Контакт не найден»</span>
+          </div>
+        </div>
+        <div class="prose">
+          <p>
+            Так же работают правка, удаление, заметки, «Пообщались», группы и блок «Пора связаться»:
+            чужая запись для базы просто не существует. Правило «нет двух групп с одинаковым
+            названием» теперь действует для пары «владелец + название», поэтому у A и у B может быть
+            по группе «Друзья».
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h2>Миграция: одна, целиком или никак</h2>
+        <div class="prose">
+          <p>
+            Файл <code>drizzle/0003_…sql</code>. Если на любом шаге ошибка, база остаётся ровно
+            такой, как была. Перед миграцией выкатка снимает бэкап.
+          </p>
+        </div>
+        <ol class="steps">
+          <li>
+            <div class="body">
+              <h3>Новые таблицы</h3>
+              <p>
+                <code>users</code>, <code>sessions</code>, <code>accounts</code>,
+                <code>verifications</code>, <code>login_link_requests</code>.
+              </p>
+            </div>
+          </li>
+          <li>
+            <div class="body">
+              <h3>Поле owner_id у контактов и групп</h3>
+              <p>Пока может быть пустым, иначе база не примет старые строки без владельца.</p>
+            </div>
+          </li>
+          <li class="changes">
+            <div class="body">
+              <h3>Раздать старые данные владельцу <span class="chip">меняет данные</span></h3>
+              <p>
+                Все существующие контакты и группы получают вашего пользователя. Подробно — ниже.
+              </p>
+            </div>
+          </li>
+          <li class="changes">
+            <div class="body">
+              <h3>
+                owner_id обязателен, новое правило групп <span class="chip">меняет правила</span>
+              </h3>
+              <p>
+                Контакт или группу без владельца база больше не сохранит. Правило уникальности
+                групп: было «название уникально во всём приложении», стало «название уникально у
+                одного владельца».
+              </p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Как ваши контакты получат владельца</h2>
+        <div class="flow">
+          <div class="fbox">
+            <span class="k">Настройка на сервере</span>
+            <p>
+              <code>OWNER_EMAIL</code> в <code>~/crm/.env</code>. Скрипт миграций передаёт эту почту
+              базе.
+            </p>
+          </div>
+          <div class="down"></div>
+          <div class="fbox q">
+            <span class="k">Шаг 3 спрашивает</span>
+            <p>В базе есть контакты или группы?</p>
+          </div>
+          <div class="down"></div>
+          <div class="branches">
+            <div class="branch">
+              <span class="blabel">Нет, база пустая</span>
+              <div class="fbox">
+                <p>Ничего не делать. Так мигрируют тестовые базы и новая установка.</p>
+              </div>
+            </div>
+            <div class="branch">
+              <span class="blabel">Есть, а почта не задана</span>
+              <div class="fbox stop">
+                <p>
+                  Ошибка. Миграция отменяется целиком, новая версия не стартует, старая продолжает
+                  работать.
+                </p>
+              </div>
+            </div>
+            <div class="branch">
+              <span class="blabel">Есть, почта задана</span>
+              <div class="fbox go">
+                <p>
+                  Найти или создать пользователя с этой почтой и записать его
+                  <code>owner_id</code> во все контакты и группы.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Что в базе</th>
+                <th>До выкатки</th>
+                <th>После выкатки</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Пользователи</td>
+                <td>таблицы нет</td>
+                <td class="new">1 — ваша почта</td>
+              </tr>
+              <tr>
+                <td>Контакты</td>
+                <td>1000, хозяина нет</td>
+                <td class="new">1000, хозяин — вы</td>
+              </tr>
+              <tr>
+                <td>Группы</td>
+                <td>6, хозяина нет</td>
+                <td class="new">6, хозяин — вы</td>
+              </tr>
+              <tr>
+                <td>Заметки</td>
+                <td>4000</td>
+                <td>4000, не трогались</td>
+              </tr>
+              <tr>
+                <td>Кто в какой группе</td>
+                <td>как есть</td>
+                <td>то же, не трогалось</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="caption">
+          Числа для примера. Автотест миграции проверяет, что число контактов, заметок, групп и
+          связей до и после совпадает.
+        </p>
+
+        <div class="callout">
+          <h3>Откат только вместе</h3>
+          <p>
+            Прошлая версия приложения не умеет заполнять <code>owner_id</code>, поэтому с новой
+            базой одна она не заработает. Откатываться можно только так: база из бэкапа, снятого
+            перед выкаткой, плюс прошлая версия приложения.
+          </p>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

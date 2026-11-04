@@ -4,9 +4,14 @@ import { Suspense } from "react";
 import { UserPlusIcon } from "lucide-react";
 
 import { ContactBrowser } from "@/components/contact-browser";
+import { DeletedContactNotice } from "@/components/deleted-contact-notice";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listContacts } from "@/lib/contacts/queries";
+import { restoreContact } from "@/lib/contacts/actions";
+import {
+  getRecentlyDeletedContact,
+  listContacts,
+} from "@/lib/contacts/queries";
 import { parseId } from "@/lib/contacts/validation";
 
 export const metadata: Metadata = {
@@ -33,14 +38,27 @@ export default function ContactsPage({ searchParams }: PageProps<"/">) {
 async function Contacts({
   searchParams,
 }: Pick<PageProps<"/">, "searchParams">) {
-  const { q, added } = await searchParams;
-  const contacts = await listContacts();
+  const { q, added, deleted } = await searchParams;
+  const deletedId = parseId(deleted);
+  const [contacts, deletedContact] = await Promise.all([
+    listContacts(),
+    // Gone for good after the undo window: then there is nothing to show
+    deletedId ? getRecentlyDeletedContact(deletedId) : null,
+  ]);
 
   return (
     <ContactBrowser
       contacts={contacts}
       initialQuery={typeof q === "string" ? q : ""}
       addedId={parseId(added)}
+      notice={
+        deletedContact && (
+          <DeletedContactNotice
+            contact={deletedContact}
+            restoreAction={restoreContact.bind(null, deletedContact.id)}
+          />
+        )
+      }
     />
   );
 }
