@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { connection } from "next/server";
 
-import { db } from "@/db";
+import { getDb } from "@/db";
 
 // Health check for the deploy and for monitoring: 200 only when the app
 // can reach its database. "version" is the git commit the image was built from.
@@ -11,7 +11,7 @@ export async function GET() {
   const headers = { "Cache-Control": "no-store" };
 
   try {
-    await db.execute(sql`select 1`);
+    await getDb().execute(sql`select 1`);
     return Response.json({ status: "ok", version }, { headers });
   } catch (error) {
     console.error("Health check: database is unreachable", error);

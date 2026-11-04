@@ -4,7 +4,7 @@ import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { connection } from "next/server";
 import { cache } from "react";
 
-import { db } from "@/db";
+import { getDb } from "@/db";
 import { contacts, notes } from "@/db/schema";
 
 import { UNDO_SECONDS } from "./undo-window";
@@ -16,7 +16,7 @@ import { UNDO_SECONDS } from "./undo-window";
 
 export async function listContacts() {
   await connection();
-  return db
+  return getDb()
     .select({
       id: contacts.id,
       name: contacts.name,
@@ -38,7 +38,7 @@ export type ContactListItem = Awaited<ReturnType<typeof listContacts>>[number];
 // and the page body both need the same contact
 export const getContact = cache(async (id: number) => {
   await connection();
-  const [contact] = await db
+  const [contact] = await getDb()
     .select()
     .from(contacts)
     .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)));
@@ -47,7 +47,7 @@ export const getContact = cache(async (id: number) => {
 
 export async function listNotes(contactId: number) {
   await connection();
-  return db
+  return getDb()
     .select({ id: notes.id, body: notes.body, createdAt: notes.createdAt })
     .from(notes)
     .where(eq(notes.contactId, contactId))
@@ -59,7 +59,7 @@ export async function listNotes(contactId: number) {
 // clock that stamped deleted_at, so the browser's clock does not matter.
 export async function getRecentlyDeletedContact(id: number) {
   await connection();
-  const [contact] = await db
+  const [contact] = await getDb()
     .select({
       id: contacts.id,
       name: contacts.name,

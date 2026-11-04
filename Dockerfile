@@ -20,9 +20,8 @@ ARG NODE_VERSION
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# The database client is created when the code loads, so the build needs some
-# connection string. Nothing connects to it: every query waits for a request.
-RUN DATABASE_URL=postgres://build:build@127.0.0.1:5432/build pnpm build
+# No database settings here: the app connects on the first query, at run time
+RUN pnpm build
 # Migrations and seed as single files that need no node_modules
 RUN pnpm exec esbuild scripts/migrate.ts scripts/seed.ts \
       --bundle --platform=node --target=node${NODE_VERSION} --format=cjs \

@@ -6,14 +6,20 @@ import postgres from "postgres";
 import * as schema from "./schema";
 import { getDatabaseUrl } from "./url";
 
-// Reuse one connection pool across hot reloads in development,
-// otherwise every code change would open a new pool.
-const globalForDb = globalThis as unknown as { pgClient?: postgres.Sql };
-
-const client = globalForDb.pgClient ?? postgres(getDatabaseUrl(), { max: 10 });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.pgClient = client;
+function connect() {
+  return drizzle(postgres(getDatabaseUrl(), { max: 10 }), { schema });
 }
 
-export const db = drizzle(client, { schema });
+// Kept on globalThis so that hot reloads in development reuse one
+// connection pool: otherwise every code change would open a new one.
+const globalForDb = globalThis as unknown as {
+  db?: ReturnType<typeof connect>;
+};
+
+// The connection is set up on the first query, not when this file loads.
+// `next build` loads every file but runs no queries, so the build needs
+// no database settings.
+export function getDb() {
+  globalForDb.db ??= connect();
+  return globalForDb.db;
+}
