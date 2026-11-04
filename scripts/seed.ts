@@ -5,6 +5,7 @@ import { count } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
+import { logDbError } from "../src/db/log-error";
 import { contacts, notes } from "../src/db/schema";
 import { getDatabaseUrl, loadEnvFile } from "../src/db/url";
 import { generateContacts } from "./seed-data";
@@ -60,6 +61,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("Seed failed:", error);
+  logDbError("Seed failed", error);
   process.exitCode = 1;
 });

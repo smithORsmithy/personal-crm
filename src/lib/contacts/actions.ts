@@ -7,6 +7,7 @@ import { after } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/db";
+import { logDbError } from "@/db/log-error";
 import { contacts, notes } from "@/db/schema";
 
 import {
@@ -58,7 +59,7 @@ export async function createContact(
       .returning({ id: contacts.id });
     id = created.id;
   } catch (error) {
-    console.error("Failed to create contact", error);
+    logDbError("Failed to create contact", error);
     return { values, message: saveFailedMessage };
   }
 
@@ -92,7 +93,7 @@ export async function updateContact(
       return { values, message: "Контакт не найден: возможно, его удалили" };
     }
   } catch (error) {
-    console.error("Failed to update contact", error);
+    logDbError("Failed to update contact", error);
     return { values, message: saveFailedMessage };
   }
 
@@ -125,7 +126,7 @@ export async function deleteContact(
       .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)))
       .returning({ id: contacts.id });
   } catch (error) {
-    console.error("Failed to delete contact", error);
+    logDbError("Failed to delete contact", error);
     return {
       error:
         "Не получилось удалить. Проверьте, что база данных запущена, и попробуйте ещё раз.",
@@ -173,7 +174,7 @@ export async function restoreContact(
       )
       .returning({ id: contacts.id });
   } catch (error) {
-    console.error("Failed to restore contact", error);
+    logDbError("Failed to restore contact", error);
     return {
       error:
         "Не получилось вернуть. Проверьте, что база данных запущена, и попробуйте ещё раз.",
@@ -203,7 +204,7 @@ async function eraseDeletedContacts() {
       console.log(`Erased deleted contacts: ${erased.length}`);
     }
   } catch (error) {
-    console.error("Failed to erase deleted contacts", error);
+    logDbError("Failed to erase deleted contacts", error);
   }
 }
 
@@ -234,7 +235,7 @@ export async function addNote(
     }
     await db.insert(notes).values({ contactId: id, body: parsed.data.body });
   } catch (error) {
-    console.error("Failed to add note", error);
+    logDbError("Failed to add note", error);
     return { body, error: saveFailedMessage };
   }
 
