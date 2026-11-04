@@ -21,10 +21,13 @@ export function ContactBrowser({
   contacts,
   initialQuery,
   addedId,
+  notice,
 }: {
   contacts: ContactListItem[];
   initialQuery: string;
   addedId: number | null;
+  // "Контакт удалён" with the undo button, rendered by the page
+  notice?: React.ReactNode;
 }) {
   const [query, setQuery] = useState(initialQuery);
   // Typing stays responsive while the list re-renders in the background
@@ -70,6 +73,7 @@ export function ContactBrowser({
     // Keep the search in the address bar, so reload and Back keep it too
     const url = new URL(window.location.href);
     url.searchParams.delete("added");
+    url.searchParams.delete("deleted");
     if (value.trim()) {
       url.searchParams.set("q", value.trim());
     } else {
@@ -90,6 +94,8 @@ export function ContactBrowser({
           Контакт «{addedContact.name}» добавлен. Он подсвечен в списке.
         </p>
       )}
+
+      {notice}
 
       <div className="relative">
         <SearchIcon

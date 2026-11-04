@@ -15,6 +15,10 @@ export const contacts = pgTable("contacts", {
     .notNull()
     .defaultNow()
     .$onUpdate(() => new Date()),
+  // Set when the contact is deleted. For a few seconds the deletion can be
+  // undone; after that the row and its notes are erased for good.
+  // Null means the contact is not deleted.
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
 // Dated notes after conversations: what was discussed and agreed

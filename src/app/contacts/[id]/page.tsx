@@ -6,11 +6,12 @@ import { MailIcon, PencilIcon, PhoneIcon, UsersIcon } from "lucide-react";
 
 import { BackLink } from "@/components/back-link";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { DeleteContactButton } from "@/components/delete-contact-button";
 import { NoteForm } from "@/components/note-form";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Contact } from "@/db/schema";
-import { addNote } from "@/lib/contacts/actions";
+import { addNote, deleteContact } from "@/lib/contacts/actions";
 import { getContact, listNotes } from "@/lib/contacts/queries";
 import { parseId } from "@/lib/contacts/validation";
 import { formatDateTime } from "@/lib/format";
@@ -48,7 +49,7 @@ async function ContactCard({
 
   return (
     <>
-      <ContactDetails contact={contact} />
+      <ContactDetails contact={contact} notesCount={notes.length} />
 
       <section
         aria-labelledby="notes-title"
@@ -93,7 +94,13 @@ async function ContactCard({
   );
 }
 
-function ContactDetails({ contact }: { contact: Contact }) {
+function ContactDetails({
+  contact,
+  notesCount,
+}: {
+  contact: Contact;
+  notesCount: number;
+}) {
   return (
     <section className="relative rounded-lg bg-card p-5 shadow-note sm:p-7 lg:shadow-note-lg">
       {/* A strip of tape, like on the landing's paper note */}
@@ -101,10 +108,12 @@ function ContactDetails({ contact }: { contact: Contact }) {
         aria-hidden
         className="absolute -top-2.5 left-1/2 -ml-10.5 h-5.5 w-21 rotate-2 bg-tape lg:-top-3 lg:-ml-12.5 lg:h-6 lg:w-25"
       />
-      <div className="flex items-start gap-3 sm:gap-4">
+      <div className="flex flex-wrap items-start gap-3 sm:gap-4 md:flex-nowrap">
         <ContactAvatar id={contact.id} name={contact.name} size="lg" />
         <div className="min-w-0 flex-1">
-          <h1 className="text-title break-words lg:text-title-lg">
+          {/* Smaller on very narrow screens (old phones, large zoom),
+              so long surnames still fit on one line */}
+          <h1 className="text-title break-words max-[359px]:text-2xl lg:text-title-lg">
             {contact.name}
           </h1>
           {contact.about && (
@@ -113,17 +122,23 @@ function ContactDetails({ contact }: { contact: Contact }) {
             </p>
           )}
         </div>
-        {/* On a phone only the pencil icon is shown to leave room for the name */}
-        <Link
-          href={`/contacts/${contact.id}/edit`}
-          className={buttonVariants({
-            variant: "outline",
-            className: "max-sm:w-10 max-sm:px-0",
-          })}
-        >
-          <PencilIcon />
-          <span className="max-sm:sr-only">Изменить</span>
-        </Link>
+        {/* On phones and small tablets the buttons go on their own line
+            under the name: the name gets the full width, so long surnames
+            like "Александрова" fit and do not break mid-word */}
+        <div className="flex shrink-0 flex-wrap gap-2 max-md:basis-full">
+          <Link
+            href={`/contacts/${contact.id}/edit`}
+            className={buttonVariants({ variant: "outline" })}
+          >
+            <PencilIcon />
+            Изменить
+          </Link>
+          <DeleteContactButton
+            action={deleteContact.bind(null, contact.id)}
+            contactName={contact.name}
+            notesCount={notesCount}
+          />
+        </div>
       </div>
 
       <dl className="mt-6 grid gap-5 border-t border-dashed pt-6 sm:grid-cols-2">
