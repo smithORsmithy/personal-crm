@@ -28,6 +28,21 @@ export function formatDateTime(date: Date): string {
   return dateTimeFormat.format(date);
 }
 
+const dateFormat = new Intl.DateTimeFormat("ru-RU", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+// "3 сентября 2026": built from parts, because the whole format
+// adds "г." after the year
+export function formatDate(date: Date): string {
+  const parts = dateFormat.formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("day")} ${part("month")} ${part("year")}`;
+}
+
 // Lowercase and treat "ё" as "е", so "Пётр" is found by "петр"
 export function normalizeForSearch(value: string): string {
   return value.toLowerCase().replaceAll("ё", "е");

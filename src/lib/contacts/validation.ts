@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { regularFrequencies } from "./frequency";
+
 // Optional text: trimmed, empty string is stored as null
 function optionalText(max: number, tooLongMessage: string) {
   return z
@@ -42,6 +44,10 @@ export const noteSchema = z.object({
     .min(1, "Напишите текст заметки")
     .max(10_000, "Заметка слишком длинная: не больше 10 000 символов"),
 });
+
+// A frequency chosen in the card: one of the four, or null for "Не задано".
+// "Другое" is saved with its date by a separate action.
+export const contactFrequencySchema = z.enum(regularFrequencies).nullable();
 
 // Ids arrive from the URL or from the browser, so they are untrusted
 export function parseId(value: unknown): number | null {
