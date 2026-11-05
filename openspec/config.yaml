@@ -1,0 +1,48 @@
+schema: spec-driven
+
+context: |
+  Language: Russian
+  All artifacts must be written in Russian.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+  Code identifiers, file paths, table and field names stay in English.
+
+  Project: personal CRM for contacts of people the owner knows personally.
+  Product idea, main scenario and out-of-scope list: specs/01-продуктовая-идея.md
+  Working rules for the agent: CLAUDE.md
+  The owner is not a developer: write requirements and scenarios in plain words,
+  explain technical terms on first use.
+  Product decisions belong to the owner: anything not in the request or existing
+  specs is a question to ask, not something to invent.
+  A feature is done when the scenarios (acceptance criteria) in its spec are met.
+
+  Tech stack: Next.js 16 (App Router), TypeScript, React 19, Tailwind CSS 4, shadcn/ui.
+  This Next.js version differs from older ones: check node_modules/next/dist/docs/.
+  Styling: colors, fonts and spacing only through design tokens (src/styles/tokens.css).
+  Data: PostgreSQL with Drizzle ORM; schema in src/db/schema.ts, migrations in drizzle/.
+  Data is accessed only on the server; the browser never talks to the database.
+  Package manager: pnpm.
+  Deploy: CI builds a Docker image to GHCR; on the VPS migrations run as a separate
+  step before the new image starts.
+  Any new library or service needs the owner's approval first.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
