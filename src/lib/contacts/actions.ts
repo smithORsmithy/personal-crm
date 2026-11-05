@@ -15,8 +15,18 @@ import {
   type ContactField,
   type ContactFormValues,
 } from "./form-values";
+import {
+  nearestDate,
+  parseDayMonth,
+  type RegularFrequency,
+} from "./frequency";
 import { KEEP_DELETED_SECONDS, UNDO_SECONDS } from "./undo-window";
-import { contactSchema, noteSchema, parseId } from "./validation";
+import {
+  contactFrequencySchema,
+  contactSchema,
+  noteSchema,
+  parseId,
+} from "./validation";
 
 export type ContactFormState = {
   values?: ContactFormValues;
@@ -38,8 +48,23 @@ export type RestoreContactState = {
   error?: string;
 };
 
+export type ContactFrequencyState = {
+  error?: string;
+};
+
+export type ContactDateFormState = {
+  // What was typed, so it stays in the field after an error
+  input?: string;
+  error?: string;
+};
+
 const saveFailedMessage =
   "Не получилось сохранить. Проверьте, что база данных запущена, и попробуйте ещё раз.";
+
+const contactGoneMessage = "Контакт не найден: возможно, его удалили";
+
+const invalidDateMessage =
+  "Проверьте дату: день и месяц через точку, например 16.12";
 
 export async function createContact(
   _prevState: ContactFormState,
@@ -90,7 +115,7 @@ export async function updateContact(
       .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)))
       .returning({ id: contacts.id });
     if (updated.length === 0) {
-      return { values, message: "Контакт не найден: возможно, его удалили" };
+      return { values, message: contactGoneMessage };
     }
   } catch (error) {
     logDbError("Failed to update contact", error);
@@ -231,7 +256,7 @@ export async function addNote(
       .from(contacts)
       .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)));
     if (!contact) {
-      return { body, error: "Контакт не найден: возможно, его удалили" };
+      return { body, error: contactGoneMessage };
     }
     await getDb().insert(notes).values({ contactId: id, body: parsed.data.body });
   } catch (error) {
@@ -241,4 +266,88 @@ export async function addNote(
 
   revalidatePath("/", "layout");
   return { savedAt: Date.now() };
+}
+
+// "Как часто общаться" in the card: one of the four frequencies, or null
+// for "Не задано". Saved at once, without the edit form. The "Другое" date
+// is cleared, so it is forgotten. The due time is not reset: it still
+// counts from the last note.
+export async function setContactFrequency(
+  contactId: number,
+  frequency: RegularFrequency | null,
+): Promise<ContactFrequencyState> {
+  const id = parseId(contactId);
+  if (!id) {
+    return { error: "Контакт не найден" };
+  }
+  const parsed = contactFrequencySchema.safeParse(frequency);
+  if (!parsed.success) {
+    return { error: "Не получилось сохранить: такой частоты нет" };
+  }
+
+  try {
+    const updated = await getDb()
+      .update(contacts)
+      .set({
+        contactFrequency: parsed.data,
+        contactDate: null,
+        contactDateSetAt: null,
+      })
+      .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)))
+      .returning({ id: contacts.id });
+    if (updated.length === 0) {
+      return { error: contactGoneMessage };
+    }
+  } catch (error) {
+    logDbError("Failed to set contact frequency", error);
+    return { error: saveFailedMessage };
+  }
+
+  revalidatePath("/", "layout");
+  return {};
+}
+
+// "Другое": the dialog with a day and month like "16.12". The year is the
+// nearest such date from today; "today" comes from the database, the same
+// clock the due rule compares with. Only notes written after now count.
+export async function setContactDate(
+  contactId: number,
+  _prevState: ContactDateFormState,
+  formData: FormData,
+): Promise<ContactDateFormState> {
+  const id = parseId(contactId);
+  const rawInput = formData.get("dayMonth");
+  const input = typeof rawInput === "string" ? rawInput : "";
+  if (!id) {
+    return { input, error: "Контакт не найден" };
+  }
+
+  const dayMonth = parseDayMonth(input);
+  if (!dayMonth) {
+    return { input, error: invalidDateMessage };
+  }
+
+  try {
+    const [{ today }] = await getDb().execute<{ today: string }>(
+      sql`select current_date::text as today`,
+    );
+    const updated = await getDb()
+      .update(contacts)
+      .set({
+        contactFrequency: "on_date",
+        contactDate: nearestDate(dayMonth, today),
+        contactDateSetAt: sql`now()`,
+      })
+      .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)))
+      .returning({ id: contacts.id });
+    if (updated.length === 0) {
+      return { input, error: contactGoneMessage };
+    }
+  } catch (error) {
+    logDbError("Failed to set contact date", error);
+    return { input, error: saveFailedMessage };
+  }
+
+  revalidatePath("/", "layout");
+  return {};
 }

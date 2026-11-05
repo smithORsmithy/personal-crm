@@ -2,16 +2,28 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { MailIcon, PencilIcon, PhoneIcon, UsersIcon } from "lucide-react";
+import {
+  CalendarClockIcon,
+  MailIcon,
+  PencilIcon,
+  PhoneIcon,
+  UsersIcon,
+} from "lucide-react";
 
 import { BackLink } from "@/components/back-link";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { ContactFrequencySelect } from "@/components/contact-frequency-select";
 import { DeleteContactButton } from "@/components/delete-contact-button";
 import { NoteForm } from "@/components/note-form";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Contact } from "@/db/schema";
-import { addNote, deleteContact } from "@/lib/contacts/actions";
+import {
+  addNote,
+  deleteContact,
+  setContactDate,
+  setContactFrequency,
+} from "@/lib/contacts/actions";
 import { getContact, listNotes } from "@/lib/contacts/queries";
 import { parseId } from "@/lib/contacts/validation";
 import { formatDateTime } from "@/lib/format";
@@ -163,6 +175,20 @@ function ContactDetails({
           )}
         </DetailItem>
         <DetailItem
+          icon={<CalendarClockIcon />}
+          label="Как часто общаться"
+          labelId="contact-frequency-label"
+          className="sm:col-span-2"
+        >
+          <ContactFrequencySelect
+            frequency={contact.contactFrequency}
+            contactDate={contact.contactDate}
+            labelId="contact-frequency-label"
+            setFrequencyAction={setContactFrequency.bind(null, contact.id)}
+            setDateAction={setContactDate.bind(null, contact.id)}
+          />
+        </DetailItem>
+        <DetailItem
           icon={<UsersIcon />}
           label="Откуда знакомы"
           className="sm:col-span-2"
@@ -179,17 +205,20 @@ function ContactDetails({
 function DetailItem({
   icon,
   label,
+  labelId,
   className,
   children,
 }: {
   icon: React.ReactNode;
   label: string;
+  // For a control in <dd> that this label names
+  labelId?: string;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className={className}>
-      <dt className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground [&_svg]:size-3.5">
+      <dt id={labelId} className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground [&_svg]:size-3.5">
         {icon}
         {label}
       </dt>

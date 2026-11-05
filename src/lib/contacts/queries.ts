@@ -7,6 +7,7 @@ import { cache } from "react";
 import { getDb } from "@/db";
 import { contacts, notes } from "@/db/schema";
 
+import * as due from "./due";
 import { UNDO_SECONDS } from "./undo-window";
 
 // Contacts and notes are always read per request: the data changes
@@ -73,3 +74,21 @@ export async function getRecentlyDeletedContact(id: number) {
 export type RecentlyDeletedContact = NonNullable<
   Awaited<ReturnType<typeof getRecentlyDeletedContact>>
 >;
+
+// "Пора связаться": the rule lives in due.ts, here it runs by the
+// database clock (now())
+
+export async function listDueContacts() {
+  await connection();
+  return due.selectDueContacts(getDb());
+}
+
+export async function countDueContacts() {
+  await connection();
+  return due.countDueContacts(getDb());
+}
+
+export async function hasContactsWithFrequency() {
+  await connection();
+  return due.hasContactsWithFrequency(getDb());
+}
