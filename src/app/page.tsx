@@ -13,8 +13,10 @@ import {
   getRecentlyDeletedContact,
   listContacts,
 } from "@/lib/contacts/queries";
+import { parseGroupParam } from "@/lib/contacts/filter";
 import { parseId } from "@/lib/contacts/validation";
 import { formatCount, pluralize } from "@/lib/format";
+import { listGroups } from "@/lib/groups/queries";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -88,10 +90,11 @@ function KeepInTouchLink({ count = 0 }: { count?: number }) {
 async function Contacts({
   searchParams,
 }: Pick<PageProps<"/">, "searchParams">) {
-  const { q, added, deleted } = await searchParams;
+  const { q, group, added, deleted } = await searchParams;
   const deletedId = parseId(deleted);
-  const [contacts, deletedContact] = await Promise.all([
+  const [contacts, groups, deletedContact] = await Promise.all([
     listContacts(),
+    listGroups(),
     // Gone for good after the undo window: then there is nothing to show
     deletedId ? getRecentlyDeletedContact(deletedId) : null,
   ]);
@@ -99,7 +102,9 @@ async function Contacts({
   return (
     <ContactBrowser
       contacts={contacts}
+      groups={groups}
       initialQuery={typeof q === "string" ? q : ""}
+      initialGroupId={parseGroupParam(group, groups)}
       addedId={parseId(added)}
       notice={
         deletedContact && (

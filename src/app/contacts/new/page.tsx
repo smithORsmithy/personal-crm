@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { BackLink } from "@/components/back-link";
 import { ContactForm } from "@/components/contact-form";
+import { Skeleton } from "@/components/ui/skeleton";
 import { createContact } from "@/lib/contacts/actions";
+import { listGroups } from "@/lib/groups/queries";
 
 export const metadata: Metadata = {
   title: "Новый контакт",
@@ -16,13 +19,33 @@ export default function NewContactPage() {
         <h1 className="mb-6 text-title lg:text-title-lg">
           Новый контакт
         </h1>
-        <ContactForm
-          action={createContact}
-          submitLabel="Добавить контакт"
-          pendingLabel="Добавляю…"
-          cancelHref="/"
-        />
+        <Suspense fallback={<NewContactFormSkeleton />}>
+          <NewContactForm />
+        </Suspense>
       </section>
+    </div>
+  );
+}
+
+async function NewContactForm() {
+  return (
+    <ContactForm
+      action={createContact}
+      groups={await listGroups()}
+      submitLabel="Добавить контакт"
+      pendingLabel="Добавляю…"
+      cancelHref="/"
+    />
+  );
+}
+
+function NewContactFormSkeleton() {
+  return (
+    <div className="flex flex-col gap-5" aria-busy="true">
+      <span className="sr-only">Загружаю форму…</span>
+      {Array.from({ length: 4 }, (_, index) => (
+        <Skeleton key={index} className="h-14" />
+      ))}
     </div>
   );
 }

@@ -85,9 +85,23 @@ function dueRule(lastNote: LastNote, now?: Date) {
   return { isDue, overdueRatio };
 }
 
+// Only the people of one group. A deleted group has no people, even while
+// the deletion can be undone. "contacts.id" is written out: Drizzle leaves
+// the table name off a column inside a select, and a bare "id" would mean
+// groups.id here.
+function inGroup(groupId: number): SQL {
+  return sql`exists (
+    select 1 from contact_groups cg
+    join groups g on g.id = cg.group_id
+    where cg.contact_id = contacts.id and cg.group_id = ${groupId}
+      and g.deleted_at is null
+  )`;
+}
+
 // The "Пора связаться" page: the most overdue first, then by name
-// in Russian order (as in the contact list), then by id
-export async function selectDueContacts(db: Db, now?: Date) {
+// in Russian order (as in the contact list), then by id. With a group,
+// only its people; the order stays the same.
+export async function selectDueContacts(db: Db, now?: Date, groupId?: number) {
   const lastNote = lastNoteOf(db);
   const { isDue, overdueRatio } = dueRule(lastNote, now);
   return db
@@ -100,7 +114,13 @@ export async function selectDueContacts(db: Db, now?: Date) {
     })
     .from(contacts)
     .leftJoinLateral(lastNote, sql`true`)
-    .where(and(withFrequency, isDue))
+    .where(
+      and(
+        withFrequency,
+        isDue,
+        groupId === undefined ? undefined : inGroup(groupId),
+      ),
+    )
     .orderBy(
       sql`${overdueRatio} desc`,
       sql`${contacts.name} collate "ru-x-icu"`,

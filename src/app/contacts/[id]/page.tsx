@@ -7,6 +7,7 @@ import {
   MailIcon,
   PencilIcon,
   PhoneIcon,
+  TagsIcon,
   UsersIcon,
 } from "lucide-react";
 
@@ -14,6 +15,7 @@ import { BackLink } from "@/components/back-link";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { ContactFrequencySelect } from "@/components/contact-frequency-select";
 import { DeleteContactButton } from "@/components/delete-contact-button";
+import { GroupsField, type FieldGroup } from "@/components/groups-field";
 import { NoteForm } from "@/components/note-form";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,6 +29,12 @@ import {
 import { getContact, listNotes } from "@/lib/contacts/queries";
 import { parseId } from "@/lib/contacts/validation";
 import { formatDateTime } from "@/lib/format";
+import {
+  addContactToGroup,
+  addContactToNewGroup,
+  removeContactFromGroup,
+} from "@/lib/groups/actions";
+import { listContactGroups, listGroups } from "@/lib/groups/queries";
 
 export async function generateMetadata({
   params,
@@ -54,14 +62,24 @@ async function ContactCard({
   if (!id) {
     notFound();
   }
-  const [contact, notes] = await Promise.all([getContact(id), listNotes(id)]);
+  const [contact, notes, allGroups, contactGroups] = await Promise.all([
+    getContact(id),
+    listNotes(id),
+    listGroups(),
+    listContactGroups(id),
+  ]);
   if (!contact) {
     notFound();
   }
 
   return (
     <>
-      <ContactDetails contact={contact} notesCount={notes.length} />
+      <ContactDetails
+        contact={contact}
+        notesCount={notes.length}
+        allGroups={allGroups}
+        contactGroups={contactGroups}
+      />
 
       <section
         aria-labelledby="notes-title"
@@ -109,9 +127,13 @@ async function ContactCard({
 function ContactDetails({
   contact,
   notesCount,
+  allGroups,
+  contactGroups,
 }: {
   contact: Contact;
   notesCount: number;
+  allGroups: FieldGroup[];
+  contactGroups: FieldGroup[];
 }) {
   return (
     <section className="relative rounded-lg bg-card p-5 shadow-note sm:p-7 lg:shadow-note-lg">
@@ -186,6 +208,21 @@ function ContactDetails({
             labelId="contact-frequency-label"
             setFrequencyAction={setContactFrequency.bind(null, contact.id)}
             setDateAction={setContactDate.bind(null, contact.id)}
+          />
+        </DetailItem>
+        <DetailItem
+          icon={<TagsIcon />}
+          label="Группы"
+          className="sm:col-span-2"
+        >
+          {/* Saved at once, like the frequency: no "Изменить" needed */}
+          <GroupsField
+            mode="card"
+            groups={allGroups}
+            selected={contactGroups}
+            add={addContactToGroup.bind(null, contact.id)}
+            remove={removeContactFromGroup.bind(null, contact.id)}
+            create={addContactToNewGroup.bind(null, contact.id)}
           />
         </DetailItem>
         <DetailItem

@@ -5,13 +5,16 @@ import { CalendarClockIcon, CircleCheckIcon } from "lucide-react";
 
 import { BackLink } from "@/components/back-link";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { GroupFilter } from "@/components/group-filter";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DueContact } from "@/lib/contacts/due";
+import { parseGroupParam } from "@/lib/contacts/filter";
 import {
   hasContactsWithFrequency,
   listDueContacts,
 } from "@/lib/contacts/queries";
 import { formatDate } from "@/lib/format";
+import { listGroups } from "@/lib/groups/queries";
 
 export const metadata: Metadata = {
   title: "Пора связаться",
@@ -20,32 +23,76 @@ export const metadata: Metadata = {
 // People whose term has passed: who they are and what the last talk was
 // about, to remember them before writing. The frequency and the due date
 // are not shown here, only the order tells who is the most overdue.
-export default function KeepInTouchPage() {
+export default function KeepInTouchPage({
+  searchParams,
+}: PageProps<"/keep-in-touch">) {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       <BackLink href="/">Все контакты</BackLink>
       <h1 className="text-title lg:text-title-lg">Пора связаться</h1>
       <Suspense fallback={<DueContactsSkeleton />}>
-        <DueContacts />
+        <DueContacts searchParams={searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function DueContacts() {
-  const contacts = await listDueContacts();
+async function DueContacts({
+  searchParams,
+}: Pick<PageProps<"/keep-in-touch">, "searchParams">) {
+  const { group } = await searchParams;
+  const groups = await listGroups();
+  // A number that is not among the groups (deleted since) means "Все"
+  const groupId = parseGroupParam(group, groups);
+  const contacts = await listDueContacts(groupId ?? undefined);
 
+  return (
+    <>
+      {/* Every button is a link: the list is built on the server, and the
+          choice stays in the address. "replace": Back leads away from the
+          page, not through the filters. */}
+      <GroupFilter
+        mode="links"
+        groups={groups}
+        selectedId={groupId}
+        hrefFor={(id) =>
+          id === null ? "/keep-in-touch" : `/keep-in-touch?group=${id}`
+        }
+      />
+      <DueList
+        contacts={contacts}
+        groupName={groups.find((item) => item.id === groupId)?.name}
+      />
+    </>
+  );
+}
+
+async function DueList({
+  contacts,
+  groupName,
+}: {
+  contacts: DueContact[];
+  groupName?: string;
+}) {
   if (contacts.length === 0) {
-    return (await hasContactsWithFrequency()) ? (
+    // Nobody has a frequency at all: the first thing to say
+    if (!(await hasContactsWithFrequency())) {
+      return (
+        <EmptyState
+          icon={<CalendarClockIcon className="text-muted-foreground" />}
+          title="Частота пока не задана"
+          text="Откройте карточку контакта и выберите, как часто хотите общаться."
+        />
+      );
+    }
+    return (
       <EmptyState
         icon={<CircleCheckIcon className="text-success" />}
-        title="Со всеми на связи"
-      />
-    ) : (
-      <EmptyState
-        icon={<CalendarClockIcon className="text-muted-foreground" />}
-        title="Частота пока не задана"
-        text="Откройте карточку контакта и выберите, как часто хотите общаться."
+        title={
+          groupName === undefined
+            ? "Со всеми на связи"
+            : `В группе «${groupName}» сейчас никому не пора написать`
+        }
       />
     );
   }

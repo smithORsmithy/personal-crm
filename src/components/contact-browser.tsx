@@ -5,50 +5,56 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { SearchIcon, UserPlusIcon, XIcon } from "lucide-react";
 
 import { ContactAvatar } from "@/components/contact-avatar";
+import { GroupFilter } from "@/components/group-filter";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { filterContacts } from "@/lib/contacts/filter";
 import type { ContactListItem } from "@/lib/contacts/queries";
-import {
-  formatCount,
-  normalizeForSearch,
-  pluralize,
-} from "@/lib/format";
+import { formatCount, pluralize } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const contactWord = ["контакт", "контакта", "контактов"] as const;
 
 export function ContactBrowser({
   contacts,
+  groups,
   initialQuery,
+  initialGroupId,
   addedId,
   notice,
 }: {
   contacts: ContactListItem[];
+  groups: { id: number; name: string }[];
   initialQuery: string;
+  // From ?group=; null is "Все"
+  initialGroupId: number | null;
   addedId: number | null;
   // "Контакт удалён" with the undo button, rendered by the page
   notice?: React.ReactNode;
 }) {
   const [query, setQuery] = useState(initialQuery);
+  const [groupId, setGroupId] = useState(initialGroupId);
   // Typing stays responsive while the list re-renders in the background
   const deferredQuery = useDeferredValue(query);
 
-  const searchableNames = useMemo(
-    () => contacts.map((contact) => normalizeForSearch(contact.name)),
-    [contacts],
+  // The people of the chosen group: the search runs among them, and the
+  // count is taken from them
+  const contactsInGroup = useMemo(
+    () => filterContacts(contacts, { query: "", groupId }),
+    [contacts, groupId],
   );
-
-  // Every word of the query must appear in the name: "анна смир" finds
-  // "Анна Смирнова", and so does "смирнова анна"
-  const visibleContacts = useMemo(() => {
-    const words = normalizeForSearch(deferredQuery).split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
-      return contacts;
-    }
-    return contacts.filter((_, index) =>
-      words.every((word) => searchableNames[index].includes(word)),
-    );
-  }, [contacts, searchableNames, deferredQuery]);
+  const visibleContacts = useMemo(
+    () =>
+      filterContacts(contactsInGroup, { query: deferredQuery, groupId: null }),
+    [contactsInGroup, deferredQuery],
+  );
+  const groupsById = useMemo(
+    () => new Map(groups.map((group) => [group.id, group.name])),
+    [groups],
+  );
+  const selectedGroupName =
+    groupId === null ? undefined : groupsById.get(groupId);
 
   const addedContact =
     addedId === null
@@ -68,18 +74,36 @@ export function ContactBrowser({
     return () => cancelAnimationFrame(frame);
   }, [addedId]);
 
-  function changeQuery(value: string) {
-    setQuery(value);
-    // Keep the search in the address bar, so reload and Back keep it too
+  // The search and the group live in the address bar, so reload and Back
+  // keep them too. "added" and "deleted" are one-time messages: they go.
+  function updateAddress(change: (params: URLSearchParams) => void) {
     const url = new URL(window.location.href);
     url.searchParams.delete("added");
     url.searchParams.delete("deleted");
-    if (value.trim()) {
-      url.searchParams.set("q", value.trim());
-    } else {
-      url.searchParams.delete("q");
-    }
+    change(url.searchParams);
     window.history.replaceState(null, "", url);
+  }
+
+  function changeQuery(value: string) {
+    setQuery(value);
+    updateAddress((params) => {
+      if (value.trim()) {
+        params.set("q", value.trim());
+      } else {
+        params.delete("q");
+      }
+    });
+  }
+
+  function changeGroup(id: number | null) {
+    setGroupId(id);
+    updateAddress((params) => {
+      if (id === null) {
+        params.delete("group");
+      } else {
+        params.set("group", String(id));
+      }
+    });
   }
 
   const isSearching = deferredQuery.trim() !== "";
@@ -129,20 +153,34 @@ export function ContactBrowser({
         )}
       </div>
 
+      <GroupFilter
+        mode="buttons"
+        groups={groups}
+        selectedId={groupId}
+        onSelect={changeGroup}
+        showSettingsLink
+      />
+
       {/* Handwritten caption, like "знакомо?" on the landing */}
       <p
         className="font-script text-kicker text-accent lg:text-kicker-lg"
         aria-live="polite"
       >
         {isSearching
-          ? `Найдено: ${formatCount(visibleContacts.length)} из ${formatCount(contacts.length)}`
-          : `${formatCount(contacts.length)} ${pluralize(contacts.length, contactWord)}`}
+          ? `Найдено: ${formatCount(visibleContacts.length)} из ${formatCount(contactsInGroup.length)}`
+          : `${formatCount(contactsInGroup.length)} ${pluralize(contactsInGroup.length, contactWord)}`}
       </p>
 
       {contacts.length === 0 ? (
         <EmptyState
           title="Пока нет ни одного контакта"
           text="Добавьте первого человека — коллегу, друга или нового знакомого."
+        />
+      ) : selectedGroupName !== undefined && contactsInGroup.length === 0 ? (
+        <EmptyState
+          title={`В группе «${selectedGroupName}» пока никого нет`}
+          text="Добавьте человека в группу в его карточке."
+          withAddButton={false}
         />
       ) : visibleContacts.length === 0 ? (
         <EmptyState
@@ -161,6 +199,9 @@ export function ContactBrowser({
               <ContactRow
                 key={contact.id}
                 contact={contact}
+                groupNames={contact.groupIds.flatMap(
+                  (id) => groupsById.get(id) ?? [],
+                )}
                 highlighted={contact.id === addedId}
               />
             ))}
@@ -173,9 +214,11 @@ export function ContactBrowser({
 
 function ContactRow({
   contact,
+  groupNames,
   highlighted,
 }: {
   contact: ContactListItem;
+  groupNames: string[];
   highlighted: boolean;
 }) {
   return (
@@ -200,6 +243,18 @@ function ContactRow({
                 {contact.about}
               </div>
             )}
+            {/* Labels of the groups; no groups, no block */}
+            {groupNames.length > 0 && (
+              <ul aria-label="Группы" className="mt-1 flex flex-wrap gap-1">
+                {groupNames.map((name) => (
+                  <li key={name} className="max-w-full">
+                    <Badge variant="secondary" className="max-w-full">
+                      <span className="truncate">{name}</span>
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
         <div className="hidden truncate text-sm text-muted-foreground md:block">
@@ -218,19 +273,29 @@ function ContactRow({
   );
 }
 
-function EmptyState({ title, text }: { title: string; text: string }) {
+function EmptyState({
+  title,
+  text,
+  withAddButton = true,
+}: {
+  title: string;
+  text: string;
+  withAddButton?: boolean;
+}) {
   return (
     // Dashed frame, like the "works everywhere" plate on the landing
     <div className="flex flex-col items-center gap-3 rounded-lg border-[1.5px] border-dashed border-input px-6 py-12 text-center">
       <p className="text-section">{title}</p>
       <p className="max-w-sm text-sm text-muted-foreground">{text}</p>
-      <Link
-        href="/contacts/new"
-        className={cn(buttonVariants({ variant: "outline" }), "mt-2")}
-      >
-        <UserPlusIcon />
-        Добавить контакт
-      </Link>
+      {withAddButton && (
+        <Link
+          href="/contacts/new"
+          className={cn(buttonVariants({ variant: "outline" }), "mt-2")}
+        >
+          <UserPlusIcon />
+          Добавить контакт
+        </Link>
+      )}
     </div>
   );
 }

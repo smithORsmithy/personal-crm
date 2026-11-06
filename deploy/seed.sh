@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Fills the production database with test contacts, using the image that is
-# live now. Safe: if the database already has contacts, it changes nothing.
+# live now. If the database already has contacts, no contacts are added:
+# only test contacts that are in no group are put into groups. Contacts
+# added or edited by hand are never touched.
 # Called by the "Seed test data" workflow over SSH as the deploy user.
 set -euo pipefail
 
