@@ -4,13 +4,13 @@ import { and, eq, gt, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect, RedirectType } from "next/navigation";
 import { after } from "next/server";
-import { z } from "zod";
 
 import { getDb } from "@/db";
 import { logDbError } from "@/db/log-error";
 import { contacts, notes } from "@/db/schema";
 
 import {
+  parseContactForm,
   readContactValues,
   type ContactField,
   type ContactFormValues,
@@ -20,10 +20,10 @@ import {
   parseDayMonth,
   type RegularFrequency,
 } from "./frequency";
-import { KEEP_DELETED_SECONDS, UNDO_SECONDS } from "./undo-window";
+import { KEEP_DELETED_SECONDS, UNDO_SECONDS } from "@/lib/undo-window";
+import { createContactWithGroups, updateContactWithGroups } from "./save";
 import {
   contactFrequencySchema,
-  contactSchema,
   noteSchema,
   parseId,
 } from "./validation";
@@ -32,6 +32,9 @@ export type ContactFormState = {
   values?: ContactFormValues;
   errors?: Partial<Record<ContactField, string[]>>;
   message?: string;
+  // The groups chosen in the form, so an error does not lose them
+  groupIds?: number[];
+  newGroups?: string[];
 };
 
 export type NoteFormState = {
@@ -70,22 +73,22 @@ export async function createContact(
   _prevState: ContactFormState,
   formData: FormData,
 ): Promise<ContactFormState> {
-  const values = readContactValues(formData);
-  const parsed = contactSchema.safeParse(values);
-  if (!parsed.success) {
-    return { values, errors: z.flattenError(parsed.error).fieldErrors };
+  const parsed = parseContactForm(formData);
+  const selection = { groupIds: parsed.groupIds, newGroups: parsed.newGroups };
+  if (!parsed.ok) {
+    return { ...selection, values: parsed.values, errors: parsed.errors };
   }
 
   let id: number;
   try {
-    const [created] = await getDb()
-      .insert(contacts)
-      .values(parsed.data)
-      .returning({ id: contacts.id });
-    id = created.id;
+    id = await createContactWithGroups(getDb(), parsed.data, selection);
   } catch (error) {
     logDbError("Failed to create contact", error);
-    return { values, message: saveFailedMessage };
+    return {
+      ...selection,
+      values: readContactValues(formData),
+      message: saveFailedMessage,
+    };
   }
 
   revalidatePath("/", "layout");
@@ -103,23 +106,25 @@ export async function updateContact(
     return { values, message: "Контакт не найден" };
   }
 
-  const parsed = contactSchema.safeParse(values);
-  if (!parsed.success) {
-    return { values, errors: z.flattenError(parsed.error).fieldErrors };
+  const parsed = parseContactForm(formData);
+  const selection = { groupIds: parsed.groupIds, newGroups: parsed.newGroups };
+  if (!parsed.ok) {
+    return { ...selection, values: parsed.values, errors: parsed.errors };
   }
 
   try {
-    const updated = await getDb()
-      .update(contacts)
-      .set(parsed.data)
-      .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)))
-      .returning({ id: contacts.id });
-    if (updated.length === 0) {
-      return { values, message: contactGoneMessage };
+    const saved = await updateContactWithGroups(
+      getDb(),
+      id,
+      parsed.data,
+      selection,
+    );
+    if (!saved) {
+      return { ...selection, values, message: contactGoneMessage };
     }
   } catch (error) {
     logDbError("Failed to update contact", error);
-    return { values, message: saveFailedMessage };
+    return { ...selection, values, message: saveFailedMessage };
   }
 
   revalidatePath("/", "layout");

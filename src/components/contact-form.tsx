@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 
+import { GroupsField, type FieldGroup as GroupOption } from "@/components/groups-field";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Field,
@@ -22,6 +23,8 @@ import {
 export function ContactForm({
   action,
   defaultValues = emptyContactValues,
+  groups,
+  selectedGroups = [],
   submitLabel,
   pendingLabel,
   cancelHref,
@@ -31,6 +34,9 @@ export function ContactForm({
     formData: FormData,
   ) => Promise<ContactFormState>;
   defaultValues?: ContactFormValues;
+  // All groups to choose from, and the ones the person is in now
+  groups: GroupOption[];
+  selectedGroups?: GroupOption[];
   submitLabel: string;
   pendingLabel: string;
   cancelHref: string;
@@ -121,6 +127,17 @@ export function ContactForm({
             <FieldError>{errorOf("email")}</FieldError>
           </Field>
         </div>
+
+        <Field>
+          <FieldLabel htmlFor="groups-field">Группы</FieldLabel>
+          {/* Changes wait for "Сохранить": the chosen groups travel with the form */}
+          <GroupsField
+            mode="form"
+            groups={groups}
+            selected={selectedGroups}
+            newNames={state.newGroups}
+          />
+        </Field>
       </FieldGroup>
 
       {state.message && (

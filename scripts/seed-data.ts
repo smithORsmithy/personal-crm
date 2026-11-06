@@ -7,7 +7,28 @@ type Gender = "m" | "f";
 type Random = () => number;
 
 export type SeedNote = { body: string; createdAt: Date };
-export type SeedContact = { contact: NewContact; notes: SeedNote[] };
+export type SeedContact = {
+  contact: NewContact;
+  notes: SeedNote[];
+  // Names of the initial groups the contact is in: none, one or two
+  groupNames: string[];
+};
+
+// What `pnpm db:seed` generates. Databases seeded earlier hold exactly these
+// contacts, and that is how the seed knows them again (seedContactKey):
+// do not change the order of random numbers for name, about, howWeMet,
+// phone and email.
+export const SEED_CONTACT_COUNT = 1000;
+export const SEED_RANDOM_SEED = 20261011;
+
+// The five groups every installation starts with (migration groups_presets)
+export const seedGroupNames = [
+  "Семья",
+  "Друзья",
+  "Знакомые",
+  "Теннис",
+  "Аналитики",
+] as const;
 
 // mulberry32: tiny deterministic PRNG
 function createRandom(seed: number): Random {
@@ -402,8 +423,81 @@ function generateNotes(ctx: Context, createdAt: Date, now: Date): SeedNote[] {
   }));
 }
 
+// Links between contacts and groups, from the contacts' group names.
+// A group that is not in the database (renamed or deleted) is skipped.
+export function buildGroupLinks(
+  seeded: readonly { groupNames: readonly string[] }[],
+  contactIds: readonly number[],
+  groupIdsByName: ReadonlyMap<string, number>,
+): { contactId: number; groupId: number }[] {
+  return seeded.flatMap((item, index) =>
+    item.groupNames.flatMap((name) => {
+      const groupId = groupIdsByName.get(name);
+      return groupId === undefined
+        ? []
+        : [{ contactId: contactIds[index], groupId }];
+    }),
+  );
+}
+
+// The fields that tell a test contact from one added by hand. Dates are
+// not here: they are counted from "now" and differ between runs.
+type KeyFields = {
+  name: string;
+  about?: string | null;
+  howWeMet?: string | null;
+  phone?: string | null;
+  email?: string | null;
+};
+
+export function seedContactKey(contact: KeyFields): string {
+  return JSON.stringify([
+    contact.name,
+    contact.about ?? null,
+    contact.howWeMet ?? null,
+    contact.phone ?? null,
+    contact.email ?? null,
+  ]);
+}
+
+// Contacts already in the database that the seed made itself and nobody
+// changed: each gets the groups it would get on an empty database. A contact
+// added or edited by hand has no match and gets nothing. Groups that are
+// not in the database (renamed or deleted) are skipped.
+export function matchTestContacts(
+  existing: readonly ({ id: number } & KeyFields)[],
+  seeded: readonly { contact: KeyFields; groupNames: readonly string[] }[],
+  groupIdsByName: ReadonlyMap<string, number>,
+): { contactId: number; groupId: number }[] {
+  const groupsByKey = new Map(
+    seeded.map((item) => [seedContactKey(item.contact), item.groupNames]),
+  );
+  return existing.flatMap((contact) =>
+    (groupsByKey.get(seedContactKey(contact)) ?? []).flatMap((name) => {
+      const groupId = groupIdsByName.get(name);
+      return groupId === undefined ? [] : [{ contactId: contact.id, groupId }];
+    }),
+  );
+}
+
+// From zero to two different initial groups
+function pickGroupNames(random: Random): string[] {
+  const names: string[] = [];
+  const wanted = randomInt(random, 0, 2);
+  while (names.length < wanted) {
+    const name = pick(random, seedGroupNames);
+    if (!names.includes(name)) {
+      names.push(name);
+    }
+  }
+  return names;
+}
+
 export function generateContacts(count: number, seed: number): SeedContact[] {
   const random = createRandom(seed);
+  // Groups have their own generator: the names, phones and notes stay the
+  // same as before groups were added
+  const groupRandom = createRandom(seed ^ 0x9e3779b9);
   const now = new Date();
   const usedEmails = new Set<string>();
 
@@ -434,6 +528,7 @@ export function generateContacts(count: number, seed: number): SeedContact[] {
         updatedAt: createdAt,
       },
       notes,
+      groupNames: pickGroupNames(groupRandom),
     };
   });
 }

@@ -1,7 +1,8 @@
 name: Seed test data
 
 # Manual only. Fills the production database with test contacts.
-# Safe to run again: if there are contacts already, nothing changes.
+# Safe to run again: if there are contacts already, none are added; only
+# test contacts that are in no group are put into groups.
 on:
   workflow_dispatch:
 

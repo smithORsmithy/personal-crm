@@ -9,6 +9,7 @@ import { updateContact } from "@/lib/contacts/actions";
 import { toContactFormValues } from "@/lib/contacts/form-values";
 import { getContact } from "@/lib/contacts/queries";
 import { parseId } from "@/lib/contacts/validation";
+import { listContactGroups, listGroups } from "@/lib/groups/queries";
 
 export const metadata: Metadata = {
   title: "Изменить контакт",
@@ -33,7 +34,11 @@ async function EditContact({
   if (!id) {
     notFound();
   }
-  const contact = await getContact(id);
+  const [contact, groups, selectedGroups] = await Promise.all([
+    getContact(id),
+    listGroups(),
+    listContactGroups(id),
+  ]);
   if (!contact) {
     notFound();
   }
@@ -48,6 +53,8 @@ async function EditContact({
         <ContactForm
           action={updateContact.bind(null, id)}
           defaultValues={toContactFormValues(contact)}
+          groups={groups}
+          selectedGroups={selectedGroups}
           submitLabel="Сохранить"
           pendingLabel="Сохраняю…"
           cancelHref={`/contacts/${id}`}

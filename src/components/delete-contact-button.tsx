@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { DeleteContactState } from "@/lib/contacts/actions";
-import { UNDO_SECONDS } from "@/lib/contacts/undo-window";
+import { UNDO_SECONDS } from "@/lib/undo-window";
 
 type DeleteAction = () => Promise<DeleteContactState>;
 

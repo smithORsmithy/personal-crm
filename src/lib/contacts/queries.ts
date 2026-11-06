@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { connection } from "next/server";
 import { cache } from "react";
 
@@ -8,32 +8,21 @@ import { getDb } from "@/db";
 import { contacts, notes } from "@/db/schema";
 
 import * as due from "./due";
-import { UNDO_SECONDS } from "./undo-window";
+import { selectContactList } from "./list";
+import { UNDO_SECONDS } from "@/lib/undo-window";
 
 // Contacts and notes are always read per request: the data changes
 // with every edit and must look the same in every browser.
 // A deleted contact (deleted_at is set) is hidden everywhere at once,
 // even during the few seconds it can still be brought back.
 
+// The list itself lives in list.ts, here it runs on the app's database
 export async function listContacts() {
   await connection();
-  return getDb()
-    .select({
-      id: contacts.id,
-      name: contacts.name,
-      about: contacts.about,
-      howWeMet: contacts.howWeMet,
-      phone: contacts.phone,
-      email: contacts.email,
-    })
-    .from(contacts)
-    .where(isNull(contacts.deletedAt))
-    // Russian ICU collation compares word by word, like a phone book:
-    // "Александр Беляев" comes before "Александра Кузнецова"
-    .orderBy(sql`${contacts.name} collate "ru-x-icu"`, asc(contacts.id));
+  return selectContactList(getDb());
 }
 
-export type ContactListItem = Awaited<ReturnType<typeof listContacts>>[number];
+export type { ContactListItem } from "./list";
 
 // cache() dedupes the query within one request: the page title
 // and the page body both need the same contact
@@ -78,9 +67,9 @@ export type RecentlyDeletedContact = NonNullable<
 // "Пора связаться": the rule lives in due.ts, here it runs by the
 // database clock (now())
 
-export async function listDueContacts() {
+export async function listDueContacts(groupId?: number) {
   await connection();
-  return due.selectDueContacts(getDb());
+  return due.selectDueContacts(getDb(), undefined, groupId);
 }
 
 export async function countDueContacts() {
