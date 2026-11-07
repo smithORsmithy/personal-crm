@@ -44,7 +44,11 @@ export function NewGroupForm({
         </Button>
       </div>
       {state.error && (
-        <p id="new-group-error" role="alert" className="text-sm text-destructive">
+        <p
+          id="new-group-error"
+          role="alert"
+          className="text-sm text-destructive"
+        >
           {state.error}
         </p>
       )}

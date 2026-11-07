@@ -255,7 +255,10 @@ function DetailItem({
 }) {
   return (
     <div className={className}>
-      <dt id={labelId} className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground [&_svg]:size-3.5">
+      <dt
+        id={labelId}
+        className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground [&_svg]:size-3.5"
+      >
         {icon}
         {label}
       </dt>

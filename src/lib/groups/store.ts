@@ -74,7 +74,10 @@ export async function findGroupByName(db: Database, name: string) {
     .select({ id: groups.id, name: groups.name })
     .from(groups)
     .where(
-      and(sql`lower(${groups.name}) = lower(${name})`, isNull(groups.deletedAt)),
+      and(
+        sql`lower(${groups.name}) = lower(${name})`,
+        isNull(groups.deletedAt),
+      ),
     );
   return group ?? null;
 }
@@ -169,9 +172,7 @@ export async function restoreGroup(
         )
         .returning({ id: groups.id }),
     );
-    return restored.length > 0
-      ? { status: "restored" }
-      : { status: "expired" };
+    return restored.length > 0 ? { status: "restored" } : { status: "expired" };
   } catch (error) {
     if (!isUniqueViolation(error)) {
       throw error;
@@ -335,7 +336,9 @@ export async function setContactGroups(
       const existing = await tx
         .select({ id: groups.id })
         .from(groups)
-        .where(and(inArray(groups.id, selection.groupIds), isNull(groups.deletedAt)));
+        .where(
+          and(inArray(groups.id, selection.groupIds), isNull(groups.deletedAt)),
+        );
       for (const group of existing) {
         chosen.add(group.id);
       }
@@ -345,18 +348,23 @@ export async function setContactGroups(
     }
 
     const chosenIds = [...chosen];
-    await tx.delete(contactGroups).where(
-      and(
-        eq(contactGroups.contactId, contactId),
-        inArray(
-          contactGroups.groupId,
-          tx.select({ id: groups.id }).from(groups).where(isNull(groups.deletedAt)),
+    await tx
+      .delete(contactGroups)
+      .where(
+        and(
+          eq(contactGroups.contactId, contactId),
+          inArray(
+            contactGroups.groupId,
+            tx
+              .select({ id: groups.id })
+              .from(groups)
+              .where(isNull(groups.deletedAt)),
+          ),
+          chosenIds.length > 0
+            ? notInArray(contactGroups.groupId, chosenIds)
+            : undefined,
         ),
-        chosenIds.length > 0
-          ? notInArray(contactGroups.groupId, chosenIds)
-          : undefined,
-      ),
-    );
+      );
     if (chosenIds.length > 0) {
       await tx
         .insert(contactGroups)

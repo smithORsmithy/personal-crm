@@ -10,6 +10,10 @@ scripts-dist
 next-env.d.ts
 
 # Not needed to build the app
+e2e
+playwright.config.ts
+test-results
+playwright-report
 .git
 .github
 .claude

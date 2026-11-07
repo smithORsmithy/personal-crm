@@ -1,9 +1,12 @@
-// Where the test database lives: the working database name plus "_test",
-// on the same PostgreSQL. Tests never get the working database's address.
+// Where the test databases live, on the same PostgreSQL as the working one:
+// - unit tests (Vitest): the working database name plus "_test"
+// - e2e tests (Playwright): the working database name plus "_e2e_test"
+// Tests never get the working database's address.
 
 import { getDatabaseUrl, loadEnvFile } from "../src/db/url";
 
 export const TEST_DB_SUFFIX = "_test";
+export const E2E_DB_SUFFIX = "_e2e_test";
 
 export type TestDatabaseUrls = {
   // The working database: used only to drop and create the test one
@@ -13,14 +16,24 @@ export type TestDatabaseUrls = {
 };
 
 export function getTestDatabaseUrls(): TestDatabaseUrls {
+  return testDatabaseUrls(TEST_DB_SUFFIX);
+}
+
+// A database of its own for e2e: the app writes to it for real, and the
+// unit tests can run at the same time without seeing that data
+export function getE2eDatabaseUrls(): TestDatabaseUrls {
+  return testDatabaseUrls(E2E_DB_SUFFIX);
+}
+
+function testDatabaseUrls(suffix: string): TestDatabaseUrls {
   loadEnvFile();
   const url = new URL(getDatabaseUrl());
   const adminUrl = url.toString();
 
   const workingName = decodeURIComponent(url.pathname.slice(1));
-  const testName = workingName.endsWith(TEST_DB_SUFFIX)
+  const testName = workingName.endsWith(suffix)
     ? workingName
-    : `${workingName}${TEST_DB_SUFFIX}`;
+    : `${workingName}${suffix}`;
   assertTestDatabaseName(testName);
 
   url.pathname = `/${encodeURIComponent(testName)}`;

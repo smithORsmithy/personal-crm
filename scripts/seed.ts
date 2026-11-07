@@ -67,7 +67,10 @@ async function main() {
         .select({ id: groups.id, name: groups.name })
         .from(groups)
         .where(
-          and(inArray(groups.name, [...seedGroupNames]), isNull(groups.deletedAt)),
+          and(
+            inArray(groups.name, [...seedGroupNames]),
+            isNull(groups.deletedAt),
+          ),
         );
       const links = buildGroupLinks(
         seedContacts,

@@ -30,7 +30,9 @@ export function DeleteContactButton({
 }) {
   return (
     <AlertDialog>
-      <AlertDialogTrigger className={buttonVariants({ variant: "destructive" })}>
+      <AlertDialogTrigger
+        className={buttonVariants({ variant: "destructive" })}
+      >
         <Trash2Icon />
         Удалить
       </AlertDialogTrigger>

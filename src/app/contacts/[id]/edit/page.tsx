@@ -47,9 +47,7 @@ async function EditContact({
     <>
       <BackLink href={`/contacts/${id}`}>{contact.name}</BackLink>
       <section className="rounded-lg bg-card p-5 shadow-note sm:p-7 lg:shadow-note-lg">
-        <h1 className="mb-6 text-title lg:text-title-lg">
-          Изменить контакт
-        </h1>
+        <h1 className="mb-6 text-title lg:text-title-lg">Изменить контакт</h1>
         <ContactForm
           action={updateContact.bind(null, id)}
           defaultValues={toContactFormValues(contact)}

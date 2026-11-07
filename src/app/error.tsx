@@ -17,9 +17,7 @@ export default function ErrorPage({
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
-      <h1 className="text-title">
-        Не получилось загрузить данные
-      </h1>
+      <h1 className="text-title">Не получилось загрузить данные</h1>
       <p className="text-muted-foreground">
         Скорее всего, не запущена база данных. Запустите Docker Desktop и
         выполните в папке проекта команду{" "}

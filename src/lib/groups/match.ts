@@ -34,8 +34,7 @@ export function canCreateGroup(
 }
 
 export type FieldItem<T> =
-  | { kind: "group"; group: T }
-  | { kind: "create"; name: string };
+  { kind: "group"; group: T } | { kind: "create"; name: string };
 
 // The list under the field, in order: matching groups in the order they
 // come (alphabetical from the server), then "Создать группу «…»" for a new

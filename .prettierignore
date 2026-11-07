@@ -1,0 +1,13 @@
+# Prettier also skips everything in .gitignore
+
+# Generated: drizzle-kit writes migrations and snapshots, pnpm the lockfile
+drizzle/
+pnpm-lock.yaml
+
+# Texts and agent tooling, not code
+*.md
+*.html
+.claude/
+openspec/
+docs/
+specs/

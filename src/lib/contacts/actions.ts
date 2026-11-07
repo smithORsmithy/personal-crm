@@ -15,18 +15,10 @@ import {
   type ContactField,
   type ContactFormValues,
 } from "./form-values";
-import {
-  nearestDate,
-  parseDayMonth,
-  type RegularFrequency,
-} from "./frequency";
+import { nearestDate, parseDayMonth, type RegularFrequency } from "./frequency";
 import { KEEP_DELETED_SECONDS, UNDO_SECONDS } from "@/lib/undo-window";
 import { createContactWithGroups, updateContactWithGroups } from "./save";
-import {
-  contactFrequencySchema,
-  noteSchema,
-  parseId,
-} from "./validation";
+import { contactFrequencySchema, noteSchema, parseId } from "./validation";
 
 export type ContactFormState = {
   values?: ContactFormValues;
@@ -227,7 +219,10 @@ async function eraseDeletedContacts() {
     const erased = await getDb()
       .delete(contacts)
       .where(
-        and(isNotNull(contacts.deletedAt), lte(contacts.deletedAt, pastUndoWindow)),
+        and(
+          isNotNull(contacts.deletedAt),
+          lte(contacts.deletedAt, pastUndoWindow),
+        ),
       )
       .returning({ id: contacts.id });
     if (erased.length > 0) {
@@ -263,7 +258,9 @@ export async function addNote(
     if (!contact) {
       return { body, error: contactGoneMessage };
     }
-    await getDb().insert(notes).values({ contactId: id, body: parsed.data.body });
+    await getDb()
+      .insert(notes)
+      .values({ contactId: id, body: parsed.data.body });
   } catch (error) {
     logDbError("Failed to add note", error);
     return { body, error: saveFailedMessage };

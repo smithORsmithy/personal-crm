@@ -41,7 +41,11 @@ describe("Seed data: groups", () => {
       { groupNames: [] },
     ];
     // "Семья" was renamed or deleted: it is not in the database
-    const links = buildGroupLinks(seeded, [10, 11, 12], new Map([["Теннис", 4]]));
+    const links = buildGroupLinks(
+      seeded,
+      [10, 11, 12],
+      new Map([["Теннис", 4]]),
+    );
     expect(links).toEqual([
       { contactId: 10, groupId: 4 },
       { contactId: 11, groupId: 4 },
@@ -95,11 +99,23 @@ describe("Seed data: telling test contacts", () => {
   it("тестовый контакт получает группы сида", () => {
     const seeded = [
       {
-        contact: { name: "Анна Смирнова", about: "Дизайнер", howWeMet: null, phone: "+7 900 000-00-01", email: null },
+        contact: {
+          name: "Анна Смирнова",
+          about: "Дизайнер",
+          howWeMet: null,
+          phone: "+7 900 000-00-01",
+          email: null,
+        },
         groupNames: ["Семья", "Теннис"],
       },
       {
-        contact: { name: "Олег Петров", about: null, howWeMet: null, phone: "+7 900 000-00-02", email: "oleg@example.com" },
+        contact: {
+          name: "Олег Петров",
+          about: null,
+          howWeMet: null,
+          phone: "+7 900 000-00-02",
+          email: "oleg@example.com",
+        },
         groupNames: ["Друзья"],
       },
     ];
@@ -114,7 +130,14 @@ describe("Seed data: telling test contacts", () => {
         // Phone changed by hand: not a test contact any more
         { id: 11, ...seeded[1].contact, phone: "+7 999 999-99-99" },
         // Added by hand
-        { id: 12, name: "Иван Иванов", about: "сосед по даче", howWeMet: null, phone: null, email: null },
+        {
+          id: 12,
+          name: "Иван Иванов",
+          about: "сосед по даче",
+          howWeMet: null,
+          phone: null,
+          email: null,
+        },
       ],
       seeded,
       groupIds,
@@ -128,7 +151,13 @@ describe("Seed data: telling test contacts", () => {
   it("группы, которых нет в базе, при раскладке пропускаются", () => {
     const seeded = [
       {
-        contact: { name: "Анна Смирнова", about: null, howWeMet: null, phone: null, email: null },
+        contact: {
+          name: "Анна Смирнова",
+          about: null,
+          howWeMet: null,
+          phone: null,
+          email: null,
+        },
         groupNames: ["Семья", "Теннис"],
       },
     ];

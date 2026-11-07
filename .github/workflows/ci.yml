@@ -1,0 +1,145 @@
+name: CI
+
+# Checks every pull request into main. main is protected: a PR merges only
+# when all three jobs below are green.
+on:
+  pull_request:
+    branches: [main]
+
+# A new push to the same PR cancels the run for the previous one
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+  # Database settings for tests, the same ones the app reads from .env
+  # locally (src/db/url.ts). The database is a throwaway container that
+  # exists only while a job runs, so the password is not a secret.
+  POSTGRES_USER: crm
+  POSTGRES_PASSWORD: ci-only
+  POSTGRES_DB: crm
+  POSTGRES_HOST: 127.0.0.1
+  POSTGRES_PORT: "5432"
+
+jobs:
+  checks:
+    name: Lint, format, types, unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: crm
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: crm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U crm -d crm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      # pnpm version comes from "packageManager" in package.json
+      - uses: pnpm/action-setup@v6.1.1
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        id: install
+        run: pnpm install --frozen-lockfile
+
+      # Each check runs even if the one before failed: all problems at once
+      - name: Lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm lint
+
+      - name: Format
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm format:check
+
+      - name: Types
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm typecheck
+
+      - name: Unit tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm test
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: crm
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: crm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U crm -d crm"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: pnpm/action-setup@v6.1.1
+
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install the browser
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Builds the app and runs it with an empty database of its own
+      # (see playwright.config.ts)
+      - name: E2E tests
+        run: pnpm test:e2e
+
+      - name: Keep screenshots and traces of failed tests
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: e2e-test-results
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  image:
+    name: Docker image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: docker/setup-buildx-action@v4.4.1
+
+      # Only checks that the image builds. After merge deploy.yml builds it
+      # again and pushes it to GHCR.
+      - name: Build the image (not pushed)
+        uses: docker/build-push-action@v7.4.0
+        with:
+          context: .
+          push: false
+          build-args: APP_VERSION=${{ github.sha }}
+          # Reuses layers cached by deploys from main
+          cache-from: type=gha

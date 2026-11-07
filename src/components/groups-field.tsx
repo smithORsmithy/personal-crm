@@ -50,8 +50,7 @@ const groupChip = (group: FieldGroup): Chip => ({
 const newChip = (name: string): Chip => ({ value: `n:${name}`, label: name });
 
 type OptimisticAction =
-  | { type: "add"; chip: Chip }
-  | { type: "remove"; value: string };
+  { type: "add"; chip: Chip } | { type: "remove"; value: string };
 
 function reduceChips(chips: Chip[], action: OptimisticAction): Chip[] {
   if (action.type === "add") {
@@ -118,7 +117,9 @@ export function GroupsField({
     const wipedOnClose =
       details.reason === "input-clear" &&
       !details.isItemPress &&
-      !(details.event instanceof KeyboardEvent && details.event.key === "Escape");
+      !(
+        details.event instanceof KeyboardEvent && details.event.key === "Escape"
+      );
     if (props.mode === "form" && wipedOnClose) {
       return;
     }
@@ -243,14 +244,19 @@ export function GroupsField({
       {formFields}
       <Combobox
         multiple
-        items={[...groups.map(groupChip), ...items.filter((item) => item.value === CREATE_VALUE)]}
+        items={[
+          ...groups.map(groupChip),
+          ...items.filter((item) => item.value === CREATE_VALUE),
+        ]}
         filteredItems={items}
         value={chips}
         onValueChange={change}
         inputValue={query}
         onInputValueChange={changeQuery}
         itemToStringLabel={(item: Chip) => item.label}
-        isItemEqualToValue={(item: Chip, value: Chip) => item.value === value.value}
+        isItemEqualToValue={(item: Chip, value: Chip) =>
+          item.value === value.value
+        }
         // Typing sorts the list by itself: no second filter on top of ours
         filter={null}
         // While text is typed the first item is highlighted, and Enter

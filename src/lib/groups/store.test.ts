@@ -7,7 +7,10 @@ import type { Database } from "@/db/types";
 import { withRollback } from "../../../test/db";
 import { addContact, groupIdByName } from "../../../test/fixtures";
 
-import { createContactWithGroups, updateContactWithGroups } from "@/lib/contacts/save";
+import {
+  createContactWithGroups,
+  updateContactWithGroups,
+} from "@/lib/contacts/save";
 
 import { listContactGroups, listGroups } from "./store";
 import { formatContactCount } from "./text";
@@ -120,7 +123,9 @@ describe("Contact form with groups", () => {
         newGroups: ["Йога"],
       });
       expect(await namesOf(db, id)).toEqual(["Йога"]);
-      const yoga = (await listGroups(db)).find((group) => group.name === "Йога");
+      const yoga = (await listGroups(db)).find(
+        (group) => group.name === "Йога",
+      );
       expect(yoga?.contactCount).toBe(1);
 
       // The same name in other capitals is the same group
@@ -175,7 +180,9 @@ describe("Contact form with groups", () => {
         newGroups: ["Йога"],
       });
       expect(await namesOf(db, vera)).toEqual(["Йога"]);
-      const yoga = (await listGroups(db)).find((group) => group.name === "Йога");
+      const yoga = (await listGroups(db)).find(
+        (group) => group.name === "Йога",
+      );
       expect(yoga?.contactCount).toBe(1);
     });
   });

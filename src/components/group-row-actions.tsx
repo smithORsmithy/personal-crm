@@ -81,7 +81,9 @@ function RenameGroupButton({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
-        render={<Button variant="outline" size="sm" className="max-sm:size-9" />}
+        render={
+          <Button variant="outline" size="sm" className="max-sm:size-9" />
+        }
       >
         <PencilIcon />
         <span className="max-sm:sr-only">Переименовать</span>

@@ -22,9 +22,7 @@ export const metadata: Metadata = {
   title: "Группы",
 };
 
-export default function GroupsPage({
-  searchParams,
-}: PageProps<"/groups">) {
+export default function GroupsPage({ searchParams }: PageProps<"/groups">) {
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
       <BackLink href="/">Все контакты</BackLink>
