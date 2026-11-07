@@ -91,7 +91,10 @@ describe("Keep in touch: filter by group", () => {
     await withRollback(async (db) => {
       await fill(db);
       const friends = await groupIdByName(db, "Друзья");
-      await db.update(groups).set({ deletedAt: NOW }).where(eq(groups.id, friends));
+      await db
+        .update(groups)
+        .set({ deletedAt: NOW })
+        .where(eq(groups.id, friends));
       expect(await selectDueContacts(db, NOW, friends)).toEqual([]);
     });
   });

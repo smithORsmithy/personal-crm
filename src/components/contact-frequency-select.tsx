@@ -45,7 +45,10 @@ type SetDateAction = (
   formData: FormData,
 ) => Promise<ContactDateFormState>;
 
-type Choice = { frequency: ContactFrequency | null; contactDate: string | null };
+type Choice = {
+  frequency: ContactFrequency | null;
+  contactDate: string | null;
+};
 
 // The select needs a value for "Не задано" too
 const NONE = "none";
@@ -78,7 +81,8 @@ export function ContactFrequencySelect({
       setDialogOpen(true);
       return;
     }
-    const next = value === NONE || value === null ? null : (value as RegularFrequency);
+    const next =
+      value === NONE || value === null ? null : (value as RegularFrequency);
     if (next === shown.frequency) {
       return;
     }
@@ -94,10 +98,7 @@ export function ContactFrequencySelect({
 
   return (
     <>
-      <Select
-        value={shown.frequency ?? NONE}
-        onValueChange={choose}
-      >
+      <Select value={shown.frequency ?? NONE} onValueChange={choose}>
         <SelectTrigger
           aria-labelledby={labelId}
           aria-describedby={error ? `${labelId}-error` : undefined}
@@ -107,7 +108,11 @@ export function ContactFrequencySelect({
             {() => frequencyDisplay(shown.frequency, shown.contactDate)}
           </SelectValue>
         </SelectTrigger>
-        <SelectContent align="start" sideOffset={6} alignItemWithTrigger={false}>
+        <SelectContent
+          align="start"
+          sideOffset={6}
+          alignItemWithTrigger={false}
+        >
           <SelectItem value={NONE}>{NO_FREQUENCY_LABEL}</SelectItem>
           {regularFrequencies.map((value) => (
             <SelectItem key={value} value={value}>

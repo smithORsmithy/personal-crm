@@ -80,7 +80,9 @@ export function parseContactForm(formData: FormData): ParsedContactForm {
     const parsed = parseGroupName(raw);
     if (
       parsed.ok &&
-      !newGroups.some((name) => name.toLowerCase() === parsed.name.toLowerCase())
+      !newGroups.some(
+        (name) => name.toLowerCase() === parsed.name.toLowerCase(),
+      )
     ) {
       newGroups.push(parsed.name);
     }

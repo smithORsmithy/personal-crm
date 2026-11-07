@@ -24,7 +24,9 @@ export async function addContact(
       .where(inArray(groups.name, groupNames));
     await db
       .insert(contactGroups)
-      .values(found.map((group) => ({ contactId: contact.id, groupId: group.id })));
+      .values(
+        found.map((group) => ({ contactId: contact.id, groupId: group.id })),
+      );
   }
   return contact.id;
 }

@@ -10,7 +10,11 @@ import { and, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { contactGroups, contacts, groups } from "../src/db/schema";
 import type { Database } from "../src/db/types";
 
-import { matchTestContacts, seedGroupNames, type SeedContact } from "./seed-data";
+import {
+  matchTestContacts,
+  seedGroupNames,
+  type SeedContact,
+} from "./seed-data";
 
 const BATCH_SIZE = 1000;
 
@@ -45,7 +49,10 @@ export async function addTestContactsToGroups(
       .select({ id: groups.id, name: groups.name })
       .from(groups)
       .where(
-        and(inArray(groups.name, [...seedGroupNames]), isNull(groups.deletedAt)),
+        and(
+          inArray(groups.name, [...seedGroupNames]),
+          isNull(groups.deletedAt),
+        ),
       );
 
     const links = matchTestContacts(

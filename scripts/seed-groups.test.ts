@@ -28,8 +28,10 @@ async function insertSeeded(
 const groupNamesOf = async (db: TestDb, id: number) =>
   (await listContactGroups(db, id)).map((group) => group.name).sort();
 
-const total = async (db: TestDb, table: typeof contacts | typeof notes | typeof contactGroups) =>
-  (await db.select({ value: count() }).from(table))[0].value;
+const total = async (
+  db: TestDb,
+  table: typeof contacts | typeof notes | typeof contactGroups,
+) => (await db.select({ value: count() }).from(table))[0].value;
 
 describe("pnpm db:seed on a filled database", () => {
   it("Тестовые контакты без групп", async () => {
@@ -88,7 +90,9 @@ describe("pnpm db:seed on a filled database", () => {
       const id = await insertSeeded(db, item);
       // Put into "Аналитики" by hand before the seed
       const analysts = await groupIdByName(db, "Аналитики");
-      await db.insert(contactGroups).values({ contactId: id, groupId: analysts });
+      await db
+        .insert(contactGroups)
+        .values({ contactId: id, groupId: analysts });
 
       await addTestContactsToGroups(db, seeded);
       expect(await groupNamesOf(db, id)).toEqual(["Аналитики"]);
@@ -119,7 +123,10 @@ describe("pnpm db:seed on a filled database", () => {
       const result = await addTestContactsToGroups(db, seeded);
       expect(result.contacts).toBe(0);
       expect(
-        await db.select().from(contactGroups).where(eq(contactGroups.contactId, id)),
+        await db
+          .select()
+          .from(contactGroups)
+          .where(eq(contactGroups.contactId, id)),
       ).toEqual([]);
     });
   });

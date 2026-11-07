@@ -375,7 +375,11 @@ describe("Groups in the contact card", () => {
   it("Несколько групп", async () => {
     await withRollback(async (db) => {
       const anna = await addContact(db, "Анна", ["Теннис"]);
-      await addContactToGroupCommand(db, anna, await groupIdByName(db, "Друзья"));
+      await addContactToGroupCommand(
+        db,
+        anna,
+        await groupIdByName(db, "Друзья"),
+      );
       expect(await namesOf(db, anna)).toEqual(["Друзья", "Теннис"]);
     });
   });
@@ -398,7 +402,9 @@ describe("Groups in the contact card", () => {
         ok: true,
       });
       expect(await namesOf(db, anna)).toEqual(["Йога"]);
-      const yoga = (await listGroups(db)).find((group) => group.name === "Йога");
+      const yoga = (await listGroups(db)).find(
+        (group) => group.name === "Йога",
+      );
       expect(yoga?.contactCount).toBe(1);
     });
   });

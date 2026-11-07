@@ -13,20 +13,26 @@
   body {
     @apply bg-background text-foreground;
     /* Same dotted paper as the landing */
-    background-image: radial-gradient(circle, var(--color-dot) 1px, transparent 1.3px);
+    background-image: radial-gradient(
+      circle,
+      var(--color-dot) 1px,
+      transparent 1.3px
+    );
     background-size: var(--grid-step) var(--grid-step);
 
     @variant lg {
       background-size: var(--grid-step-lg) var(--grid-step-lg);
     }
   }
-  button:not(:disabled), [role="button"]:not(:disabled) {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
     cursor: pointer;
   }
   html {
     @apply font-sans;
   }
-  h1, h2 {
+  h1,
+  h2 {
     text-wrap: balance;
   }
 }

@@ -6,7 +6,16 @@
 // 16:00" without waiting. No "server-only" and no Next.js here for the
 // same reason; the app calls them through queries.ts.
 
-import { and, count, desc, eq, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  isNotNull,
+  isNull,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import { contacts, notes } from "@/db/schema";
