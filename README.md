@@ -114,16 +114,28 @@ cd personal-crm
 
 - остановить базу: `docker compose stop`
 - открыть консоль базы: `docker compose exec db psql -U crm -d personal_crm`
-- проверить код: `pnpm lint` и `pnpm typecheck`
+- проверить код: `pnpm lint`, `pnpm typecheck` и `pnpm format:check` (оформление кода: отступы, переносы); поправить оформление автоматически: `pnpm format`
 - запустить тесты: `pnpm test` (нужна запущенная база: `docker compose up -d`; тесты работают в отдельной базе `<имя базы>_test`, рабочие данные не трогают)
 - запустить e2e-тесты — главный сценарий в настоящем браузере: `pnpm test:e2e`. Нужна запущенная база. Команда сама собирает приложение (1–2 минуты) и запускает его на http://localhost:3100 с отдельной пустой базой `<имя базы>_e2e_test`, рабочие данные не трогает. Перед первым запуском один раз скачайте браузер для тестов: `pnpm exec playwright install chromium`. Если тест упал, в папке `test-results` остаются скриншот и запись шагов; запись открывается командой `pnpm exec playwright show-trace <путь к trace.zip>`
 - после изменения схемы таблиц (`src/db/schema.ts`): `pnpm db:generate`, затем `pnpm db:migrate`
+
+## Проверки PR (CI)
+
+Изменения попадают в `main` только через pull request. На каждый PR GitHub Actions запускает три проверки (в PR — вкладка Checks, или Actions → CI):
+
+- «Lint, format, types, unit tests» — `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`
+- «E2E tests» — `pnpm test:e2e`. Если тест упал, скриншоты и запись шагов лежат в самом запуске, в разделе Artifacts (хранятся 7 дней)
+- «Docker image» — собирается образ для сервера (в GHCR не отправляется)
+
+База для тестов в CI — временный контейнер PostgreSQL, он исчезает вместе с проверкой.
+
+`main` защищён (Settings → Branches): прямой push запрещён всем, PR вливается, только когда все три проверки зелёные и ветка не отстаёт от `main`. Автовлитие включено: PR с включённым «Auto-merge» вливается сам, как только проверки позеленеют. Если PR пишет «This branch is out-of-date» (пока он ждал, в `main` влили другой PR) — нажать «Update branch».
 
 ## Выкатка на сервер
 
 Приложение работает на https://app.linkbook.site — на общем сервере с лендингом (вход: `ssh crm`).
 
-**Как выкатить новую версию:** сделать push в `main`. Дальше всё само, обычно за 3–5 минут:
+**Как выкатить новую версию:** влить PR в `main` (см. «Проверки PR»). Дальше всё само, обычно за 3–5 минут:
 
 1. GitHub Actions собирает Docker-образ с тегом — номером коммита — и кладёт его в GHCR (`ghcr.io/smithorsmithy/personal-crm`).
 2. Копирует папку `deploy/` на сервер и запускает там `deploy/deploy.sh`:
@@ -166,4 +178,5 @@ cd personal-crm
 - `src/app/health` — проверка `/health`: приложение работает и видит базу
 - `Dockerfile` — сборка образа для сервера
 - `deploy/` — выкатка: compose-файл сервера, скрипты выкатки, тестовых данных и настройки сервера
-- `.github/workflows/` — выкатка при push в `main` и ручное заполнение тестовыми данными
+- `.github/workflows/` — проверки PR (`ci.yml`), выкатка при push в `main` и ручное заполнение тестовыми данными
+- `prettier.config.mjs`, `.prettierignore` — правила оформления кода и что им не проверяется
