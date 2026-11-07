@@ -1,9 +1,9 @@
-// `pnpm db:seed` on a database that has contacts already: puts the test
+// `pnpm db:seed` for an owner who has contacts already: puts the test
 // contacts that are in no group into the initial groups, the same way an
-// empty database gets them. Contacts added or edited by hand, and anyone
-// who is in a group already, are left alone; contacts and notes do not
-// change. Takes the database (or a transaction), so tests run it on the
-// real test database.
+// empty owner gets them. Contacts added or edited by hand, and anyone who is
+// in a group already, are left alone; contacts and notes do not change.
+// Only the contacts and groups of this owner are looked at. Takes the
+// database (or a transaction), so tests run it on the real test database.
 
 import { and, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
 
@@ -20,6 +20,7 @@ const BATCH_SIZE = 1000;
 
 export async function addTestContactsToGroups(
   db: Database,
+  ownerId: string,
   seeded: readonly SeedContact[],
 ): Promise<{ contacts: number; links: number }> {
   return db.transaction(async (tx) => {
@@ -35,6 +36,7 @@ export async function addTestContactsToGroups(
       .from(contacts)
       .where(
         and(
+          eq(contacts.ownerId, ownerId),
           isNull(contacts.deletedAt),
           notExists(
             tx
@@ -50,6 +52,7 @@ export async function addTestContactsToGroups(
       .from(groups)
       .where(
         and(
+          eq(groups.ownerId, ownerId),
           inArray(groups.name, [...seedGroupNames]),
           isNull(groups.deletedAt),
         ),

@@ -1,12 +1,15 @@
 // Helpers for tests: connection to the test database, a transaction that
 // is always rolled back, and a connection to a port with no database.
 
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import * as schema from "../src/db/schema";
+import { users } from "../src/db/schema";
 import type { Database } from "../src/db/types";
 
+import { TEST_OWNER_EMAIL } from "./recreate-db";
 import { getTestDatabaseUrls, getUnreachableDatabaseUrl } from "./test-url";
 
 // The same type the app code takes: a database or a transaction
@@ -24,14 +27,20 @@ function connect(url: string) {
 }
 
 // Runs the test body in a transaction and rolls it back at the end:
-// whatever the test writes is gone for the next one
+// whatever the test writes is gone for the next one. The body gets the id of
+// the owner, the user who has the five initial groups (every database has
+// him, see the migrations); his data is what most tests work with.
 export async function withRollback(
-  body: (db: TestDb) => Promise<void>,
+  body: (db: TestDb, owner: string) => Promise<void>,
 ): Promise<void> {
   const { client, db } = connect(getTestDatabaseUrls().testUrl);
   try {
     await db.transaction(async (tx) => {
-      await body(tx as unknown as TestDb);
+      const [owner] = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, TEST_OWNER_EMAIL));
+      await body(tx as unknown as TestDb, owner.id);
       throw new Rollback();
     });
   } catch (error) {
@@ -45,11 +54,12 @@ export async function withRollback(
 
 // A database nobody listens to: connecting fails for real
 export async function withUnreachableDb(
-  body: (db: TestDb) => Promise<void>,
+  body: (db: TestDb, owner: string) => Promise<void>,
 ): Promise<void> {
   const { client, db } = connect(getUnreachableDatabaseUrl());
   try {
-    await body(db as unknown as TestDb);
+    // No database to ask: any id will do, nothing is looked up
+    await body(db as unknown as TestDb, "owner-id");
   } finally {
     await client.end();
   }

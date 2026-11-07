@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Manrope, Marck_Script } from "next/font/google";
 import Link from "next/link";
+import { Suspense } from "react";
+
+import { UserMenu } from "@/components/user-menu";
 
 import "./globals.css";
 
@@ -32,14 +35,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col">
         <header className="border-b border-dashed">
-          <div className="mx-auto flex h-16 w-full max-w-5xl items-center px-4 lg:h-20">
+          <div className="mx-auto flex h-16 w-full max-w-5xl items-center gap-4 px-4 lg:h-20">
             {/* The wordmark from the landing */}
             <Link
               href="/"
-              className="text-logo outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ring lg:text-logo-lg"
+              className="shrink-0 text-logo outline-none focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ring lg:text-logo-lg"
             >
               личная crm
             </Link>
+            {/* The email and «Выйти»: they read the session, so they
+                stream in behind a boundary like the rest of the data */}
+            <Suspense fallback={null}>
+              <UserMenu />
+            </Suspense>
           </div>
         </header>
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:py-8">

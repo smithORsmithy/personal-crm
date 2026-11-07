@@ -6,6 +6,7 @@ import { after } from "next/server";
 
 import { getDb } from "@/db";
 import { logDbError } from "@/db/log-error";
+import { requireUserId } from "@/lib/auth/current-user";
 import { parseId } from "@/lib/contacts/validation";
 import { KEEP_DELETED_SECONDS } from "@/lib/undo-window";
 
@@ -22,6 +23,10 @@ import {
   saveFailedMessage,
 } from "./commands";
 import { eraseExpiredGroups } from "./store";
+
+// Every action starts with requireUserId(): who is asking is known from the
+// session on the server, never from what the browser sends. The commands take
+// that user and touch only their groups and contacts.
 
 // Forms on the "Группы" page. The typed text comes back with an error, so
 // it stays in the field. savedAt changes after every success.
@@ -48,7 +53,8 @@ export async function createGroup(
   _prevState: GroupFormState,
   formData: FormData,
 ): Promise<GroupFormState> {
-  const result = await createGroupCommand(getDb(), readName(formData));
+  const ownerId = await requireUserId();
+  const result = await createGroupCommand(getDb(), ownerId, readName(formData));
   if (!result.ok) {
     return { input: result.input, error: result.error };
   }
@@ -61,13 +67,14 @@ export async function renameGroup(
   _prevState: GroupFormState,
   formData: FormData,
 ): Promise<GroupFormState> {
+  const ownerId = await requireUserId();
   const name = readName(formData);
   const id = parseId(groupId);
   if (!id) {
     return { input: name, error: groupGoneMessage };
   }
 
-  const result = await renameGroupCommand(getDb(), id, name);
+  const result = await renameGroupCommand(getDb(), ownerId, id, name);
   if (!result.ok) {
     return { input: result.input, error: result.error };
   }
@@ -78,12 +85,13 @@ export async function renameGroup(
 // Deleting only marks the group: for a few seconds "Отменить" can bring it
 // back. Then it is erased for good, and its links to people go with it.
 export async function deleteGroup(groupId: number): Promise<DeleteGroupState> {
+  const ownerId = await requireUserId();
   const id = parseId(groupId);
   if (!id) {
     return { error: groupGoneMessage };
   }
 
-  const result = await deleteGroupCommand(getDb(), id);
+  const result = await deleteGroupCommand(getDb(), ownerId, id);
   if (!result.ok) {
     return { error: result.error };
   }
@@ -120,12 +128,13 @@ export async function deleteGroup(groupId: number): Promise<DeleteGroupState> {
 export async function restoreGroup(
   groupId: number,
 ): Promise<RestoreGroupState> {
+  const ownerId = await requireUserId();
   const id = parseId(groupId);
   if (!id) {
     return { error: groupGoneMessage };
   }
 
-  const result = await restoreGroupCommand(getDb(), id);
+  const result = await restoreGroupCommand(getDb(), ownerId, id);
   if (!result.ok) {
     return { error: result.error };
   }
@@ -154,12 +163,18 @@ export async function addContactToGroup(
   contactId: number,
   groupId: number,
 ): Promise<ContactGroupsState> {
+  const ownerId = await requireUserId();
   const contact = parseId(contactId);
   const group = parseId(groupId);
   if (!contact || !group) {
     return { error: groupGoneMessage };
   }
-  const result = await addContactToGroupCommand(getDb(), contact, group);
+  const result = await addContactToGroupCommand(
+    getDb(),
+    ownerId,
+    contact,
+    group,
+  );
   if (!result.ok) {
     return cardFailure(result.error);
   }
@@ -171,12 +186,18 @@ export async function removeContactFromGroup(
   contactId: number,
   groupId: number,
 ): Promise<ContactGroupsState> {
+  const ownerId = await requireUserId();
   const contact = parseId(contactId);
   const group = parseId(groupId);
   if (!contact || !group) {
     return { error: groupGoneMessage };
   }
-  const result = await removeContactFromGroupCommand(getDb(), contact, group);
+  const result = await removeContactFromGroupCommand(
+    getDb(),
+    ownerId,
+    contact,
+    group,
+  );
   if (!result.ok) {
     return cardFailure(result.error);
   }
@@ -188,11 +209,17 @@ export async function addContactToNewGroup(
   contactId: number,
   name: string,
 ): Promise<ContactGroupsState> {
+  const ownerId = await requireUserId();
   const contact = parseId(contactId);
   if (!contact) {
     return { error: contactGoneMessage };
   }
-  const result = await addContactToNewGroupCommand(getDb(), contact, name);
+  const result = await addContactToNewGroupCommand(
+    getDb(),
+    ownerId,
+    contact,
+    name,
+  );
   if (!result.ok) {
     return cardFailure(result.error);
   }

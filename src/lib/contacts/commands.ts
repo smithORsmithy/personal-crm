@@ -27,6 +27,16 @@ export const saveFailedMessage =
 
 export const contactGoneMessage = "Контакт не найден: возможно, его удалили";
 
+// This user's contact that is not deleted. Someone else's contact is not
+// found: the answer is the same as for a contact that does not exist.
+function ownContact(ownerId: string, id: number) {
+  return and(
+    eq(contacts.id, id),
+    eq(contacts.ownerId, ownerId),
+    isNull(contacts.deletedAt),
+  );
+}
+
 const invalidDateMessage =
   "Проверьте дату: день и месяц через точку, например 16.12";
 
@@ -35,6 +45,7 @@ const invalidDateMessage =
 // counts from the last note.
 export async function setContactFrequencyCommand(
   db: Database,
+  ownerId: string,
   contactId: number,
   frequency: RegularFrequency | null,
 ): Promise<ContactFrequencyState> {
@@ -55,7 +66,7 @@ export async function setContactFrequencyCommand(
         contactDate: null,
         contactDateSetAt: null,
       })
-      .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)))
+      .where(ownContact(ownerId, id))
       .returning({ id: contacts.id });
     if (updated.length === 0) {
       return { error: contactGoneMessage };
@@ -72,6 +83,7 @@ export async function setContactFrequencyCommand(
 // compares with. Only notes written after now count.
 export async function setContactDateCommand(
   db: Database,
+  ownerId: string,
   contactId: number,
   rawInput: unknown,
 ): Promise<ContactDateFormState> {
@@ -98,7 +110,7 @@ export async function setContactDateCommand(
         contactDate: nearestDate(dayMonth, today),
         contactDateSetAt: sql`now()`,
       })
-      .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)))
+      .where(ownContact(ownerId, id))
       .returning({ id: contacts.id });
     if (updated.length === 0) {
       return { input, error: contactGoneMessage };

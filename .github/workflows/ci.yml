@@ -80,6 +80,13 @@ jobs:
     name: E2E tests
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Sign-in settings of the app under test. Emails go to Mailpit below, a
+    # fake mailbox that exists only while the job runs, so the secret is
+    # one-off and not a real secret, like the database password.
+    env:
+      BETTER_AUTH_SECRET: ci-only-secret-not-for-real-use-0123456789
+      SMTP_URL: smtp://127.0.0.1:1025
+      MAIL_FROM: '"Личная CRM" <noreply@mail.crm.linkbook.site>'
     services:
       postgres:
         image: postgres:18
@@ -94,6 +101,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # The fake mailbox: the app hands sign-in emails to port 1025, the
+      # tests read them through the API on port 8025
+      mailpit:
+        image: axllent/mailpit:v1.33
+        env:
+          MP_SMTP_DISABLE_RDNS: "true"
+        ports:
+          - 1025:1025
+          - 8025:8025
     steps:
       - uses: actions/checkout@v7.0.1
 

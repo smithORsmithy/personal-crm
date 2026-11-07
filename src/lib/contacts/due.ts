@@ -30,11 +30,15 @@ function nowSql(now?: Date): SQL {
   return now ? sql`${now.toISOString()}::timestamptz` : sql`now()`;
 }
 
-// Contacts that can show up at all: not deleted, a frequency or a date set
-const withFrequency = and(
-  isNull(contacts.deletedAt),
-  isNotNull(contacts.contactFrequency),
-);
+// Contacts that can show up at all: of this user, not deleted, a frequency
+// or a date set
+function withFrequency(ownerId: string) {
+  return and(
+    eq(contacts.ownerId, ownerId),
+    isNull(contacts.deletedAt),
+    isNotNull(contacts.contactFrequency),
+  );
+}
 
 // The latest note of each contact. LATERAL runs it per contact, along the
 // notes_contact_id_created_at_idx index.
@@ -94,23 +98,28 @@ function dueRule(lastNote: LastNote, now?: Date) {
   return { isDue, overdueRatio };
 }
 
-// Only the people of one group. A deleted group has no people, even while
-// the deletion can be undone. "contacts.id" is written out: Drizzle leaves
-// the table name off a column inside a select, and a bare "id" would mean
-// groups.id here.
-function inGroup(groupId: number): SQL {
+// Only the people of one group of this user: a number of someone else's
+// group gives nobody. A deleted group has no people, even while the deletion
+// can be undone. "contacts.id" is written out: Drizzle leaves the table name
+// off a column inside a select, and a bare "id" would mean groups.id here.
+function inGroup(groupId: number, ownerId: string): SQL {
   return sql`exists (
     select 1 from contact_groups cg
     join groups g on g.id = cg.group_id
     where cg.contact_id = contacts.id and cg.group_id = ${groupId}
-      and g.deleted_at is null
+      and g.owner_id = ${ownerId} and g.deleted_at is null
   )`;
 }
 
 // The "Пора связаться" page: the most overdue first, then by name
 // in Russian order (as in the contact list), then by id. With a group,
 // only its people; the order stays the same.
-export async function selectDueContacts(db: Db, now?: Date, groupId?: number) {
+export async function selectDueContacts(
+  db: Db,
+  ownerId: string,
+  now?: Date,
+  groupId?: number,
+) {
   const lastNote = lastNoteOf(db);
   const { isDue, overdueRatio } = dueRule(lastNote, now);
   return db
@@ -125,9 +134,9 @@ export async function selectDueContacts(db: Db, now?: Date, groupId?: number) {
     .leftJoinLateral(lastNote, sql`true`)
     .where(
       and(
-        withFrequency,
+        withFrequency(ownerId),
         isDue,
-        groupId === undefined ? undefined : inGroup(groupId),
+        groupId === undefined ? undefined : inGroup(groupId, ownerId),
       ),
     )
     .orderBy(
@@ -140,23 +149,30 @@ export async function selectDueContacts(db: Db, now?: Date, groupId?: number) {
 export type DueContact = Awaited<ReturnType<typeof selectDueContacts>>[number];
 
 // The number on the "Пора связаться" button
-export async function countDueContacts(db: Db, now?: Date): Promise<number> {
+export async function countDueContacts(
+  db: Db,
+  ownerId: string,
+  now?: Date,
+): Promise<number> {
   const lastNote = lastNoteOf(db);
   const { isDue } = dueRule(lastNote, now);
   const [{ value }] = await db
     .select({ value: count() })
     .from(contacts)
     .leftJoinLateral(lastNote, sql`true`)
-    .where(and(withFrequency, isDue));
+    .where(and(withFrequency(ownerId), isDue));
   return value;
 }
 
 // Picks the empty page text: "Со всеми на связи" or "Частота пока не задана"
-export async function hasContactsWithFrequency(db: Db): Promise<boolean> {
+export async function hasContactsWithFrequency(
+  db: Db,
+  ownerId: string,
+): Promise<boolean> {
   const rows = await db
     .select({ id: contacts.id })
     .from(contacts)
-    .where(withFrequency)
+    .where(withFrequency(ownerId))
     .limit(1);
   return rows.length > 0;
 }

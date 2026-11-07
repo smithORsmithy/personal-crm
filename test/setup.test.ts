@@ -18,8 +18,8 @@ describe("Test database", () => {
   });
 
   it("does not show data of a previous test: insert", async () => {
-    await withRollback(async (db) => {
-      await db.insert(contacts).values({ name: "Temp" });
+    await withRollback(async (db, owner) => {
+      await db.insert(contacts).values({ ownerId: owner, name: "Temp" });
       expect(await db.select().from(contacts)).toHaveLength(1);
     });
   });

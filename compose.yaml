@@ -1,4 +1,4 @@
-# Local development: only PostgreSQL runs in Docker.
+# Local development: only PostgreSQL and Mailpit (a fake mailbox) run in Docker.
 # Connection settings come from .env (see .env.example).
 
 # Fixed project name: the data volume is "personal-crm_pgdata"
@@ -25,6 +25,20 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  mailpit:
+    # Fake mailbox: catches sign-in emails instead of sending them to real inboxes
+    image: axllent/mailpit:v1.33
+    restart: unless-stopped
+    environment:
+      # Without it Mailpit looks up the name of every client and waits
+      # several seconds for the answer (seen with Docker Desktop on Windows)
+      MP_SMTP_DISABLE_RDNS: "true"
+    ports:
+      # SMTP (the app hands emails here) and the web page with caught emails;
+      # reachable only from this computer
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
 volumes:
   pgdata:

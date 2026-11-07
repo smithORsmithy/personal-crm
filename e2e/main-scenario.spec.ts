@@ -2,11 +2,15 @@
 // does it: in a browser, on the real app and a real database.
 // - open: the list shows every contact
 // - add a contact, find it by name, add a note: the note is saved in the card
-// - the same address in another browser: the same contacts
+// - the same address in another browser, signed in under the same email by
+//   its own link from an email: the same contacts
+// The person signs in first, as everywhere in the app.
 
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
+import { signIn, uniqueEmail } from "./auth";
 import { replaceContacts } from "./db";
+import { expect, newVisitor, test } from "./fixtures";
 
 const existing = [
   { name: "Анна Смирнова", about: "Дизайнер в студии" },
@@ -27,15 +31,18 @@ const allNames = [...existing.map((contact) => contact.name), added.name];
 const note =
   "Созвонились: договорились встретиться в пятницу и обсудить его проект";
 
-test.beforeEach(async () => {
-  await replaceContacts(existing);
-});
-
 test("main scenario: list, add a contact, find it, add a note, another browser", async ({
   page,
   browser,
   baseURL,
 }) => {
+  const email = uniqueEmail("main");
+
+  await test.step("sign in as a new person and get the starting contacts", async () => {
+    await signIn(page, email);
+    await replaceContacts(email, existing);
+  });
+
   await test.step("open: the list shows every contact", async () => {
     await page.goto("/");
     await expect(
@@ -91,11 +98,12 @@ test("main scenario: list, add a contact, find it, add a note, another browser",
   });
 
   await test.step("another browser: the same contacts and the note", async () => {
-    // A separate browser profile: nothing shared with the first one
-    const otherBrowser = await browser.newContext({ baseURL });
+    // A separate browser profile: nothing shared with the first one, it
+    // signs in under the same email by a link of its own
+    const otherBrowser = await newVisitor(browser, baseURL);
     try {
       const other = await otherBrowser.newPage();
-      await other.goto("/");
+      await signIn(other, email);
       await expectContactList(other, allNames);
 
       await contactLink(other, added.name).click();

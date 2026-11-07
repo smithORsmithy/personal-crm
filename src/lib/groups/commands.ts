@@ -30,6 +30,7 @@ function toInput(raw: unknown): string {
 
 export async function createGroupCommand(
   db: Database,
+  ownerId: string,
   rawName: unknown,
 ): Promise<{ ok: true; group: { id: number; name: string } } | GroupFailure> {
   const input = toInput(rawName);
@@ -39,7 +40,7 @@ export async function createGroupCommand(
   }
 
   try {
-    const outcome = await store.createGroup(db, parsed.name);
+    const outcome = await store.createGroup(db, ownerId, parsed.name);
     if (outcome.status === "exists") {
       return {
         ok: false,
@@ -56,6 +57,7 @@ export async function createGroupCommand(
 
 export async function renameGroupCommand(
   db: Database,
+  ownerId: string,
   groupId: number,
   rawName: unknown,
 ): Promise<{ ok: true } | GroupFailure> {
@@ -66,7 +68,7 @@ export async function renameGroupCommand(
   }
 
   try {
-    const outcome = await store.renameGroup(db, groupId, parsed.name);
+    const outcome = await store.renameGroup(db, ownerId, groupId, parsed.name);
     if (outcome.status === "taken") {
       return { ok: false, error: groupExistsMessage(outcome.name), input };
     }
@@ -84,10 +86,14 @@ export async function renameGroupCommand(
 // error, there is just nothing to undo
 export async function deleteGroupCommand(
   db: Database,
+  ownerId: string,
   groupId: number,
 ): Promise<{ ok: true; deleted: boolean } | { ok: false; error: string }> {
   try {
-    return { ok: true, deleted: await store.softDeleteGroup(db, groupId) };
+    return {
+      ok: true,
+      deleted: await store.softDeleteGroup(db, ownerId, groupId),
+    };
   } catch (error) {
     logDbError("Failed to delete group", error);
     return { ok: false, error: deleteFailedMessage };
@@ -96,10 +102,11 @@ export async function deleteGroupCommand(
 
 export async function restoreGroupCommand(
   db: Database,
+  ownerId: string,
   groupId: number,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const outcome = await store.restoreGroup(db, groupId);
+    const outcome = await store.restoreGroup(db, ownerId, groupId);
     if (outcome.status === "expired") {
       return {
         ok: false,
@@ -135,12 +142,13 @@ function membershipResult(outcome: store.MembershipOutcome): MembershipResult {
 
 export async function addContactToGroupCommand(
   db: Database,
+  ownerId: string,
   contactId: number,
   groupId: number,
 ): Promise<MembershipResult> {
   try {
     return membershipResult(
-      await store.addContactToGroup(db, contactId, groupId),
+      await store.addContactToGroup(db, ownerId, contactId, groupId),
     );
   } catch (error) {
     logDbError("Failed to add contact to group", error);
@@ -150,12 +158,13 @@ export async function addContactToGroupCommand(
 
 export async function removeContactFromGroupCommand(
   db: Database,
+  ownerId: string,
   contactId: number,
   groupId: number,
 ): Promise<MembershipResult> {
   try {
     return membershipResult(
-      await store.removeContactFromGroup(db, contactId, groupId),
+      await store.removeContactFromGroup(db, ownerId, contactId, groupId),
     );
   } catch (error) {
     logDbError("Failed to remove contact from group", error);
@@ -165,6 +174,7 @@ export async function removeContactFromGroupCommand(
 
 export async function addContactToNewGroupCommand(
   db: Database,
+  ownerId: string,
   contactId: number,
   rawName: unknown,
 ): Promise<MembershipResult> {
@@ -174,7 +184,7 @@ export async function addContactToNewGroupCommand(
   }
   try {
     return membershipResult(
-      await store.addContactToNewGroup(db, contactId, parsed.name),
+      await store.addContactToNewGroup(db, ownerId, contactId, parsed.name),
     );
   } catch (error) {
     logDbError("Failed to add contact to a new group", error);

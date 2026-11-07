@@ -2,15 +2,18 @@
 // each run starts from an empty database. This also proves the migrations
 // work on an empty database.
 
-import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+
+import { runMigrations } from "../scripts/migrate-run";
 
 import { assertTestDatabaseName, type TestDatabaseUrls } from "./test-url";
 
-export async function recreateDatabase({
+// The owner of the initial groups in every test database
+export const TEST_OWNER_EMAIL = "owner@example.test";
+
+// Drops the database and creates it again, with nothing in it
+export async function createEmptyDatabase({
   adminUrl,
-  testUrl,
   testName,
 }: TestDatabaseUrls): Promise<void> {
   assertTestDatabaseName(testName);
@@ -30,11 +33,13 @@ export async function recreateDatabase({
   } finally {
     await admin.end();
   }
+}
 
-  const client = postgres(testUrl, { max: 1, onnotice: () => {} });
-  try {
-    await migrate(drizzle(client), { migrationsFolder: "./drizzle" });
-  } finally {
-    await client.end();
-  }
+export async function recreateDatabase(urls: TestDatabaseUrls): Promise<void> {
+  await createEmptyDatabase(urls);
+  await runMigrations({
+    url: urls.testUrl,
+    migrationsFolder: "./drizzle",
+    ownerEmail: TEST_OWNER_EMAIL,
+  });
 }

@@ -36,6 +36,27 @@
       "when": 1793987262812,
       "tag": "0004_groups_presets",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794075863754,
+      "tag": "0005_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794075977084,
+      "tag": "0006_owner_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794078419246,
+      "tag": "0007_owner_required",
+      "breakpoints": true
     }
   ]
 }

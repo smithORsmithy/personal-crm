@@ -3,11 +3,13 @@
 // The rule itself (terms, dates, order) is checked by unit tests in
 // src/lib/contacts/due.test.ts; here — that the screens show it.
 
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
 
 import { formatDate } from "../src/lib/format";
 
+import { signIn, uniqueEmail } from "./auth";
 import { databaseDate, replaceContacts } from "./db";
+import { expect, newVisitor, test } from "./fixtures";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -21,8 +23,10 @@ test("frequency: choose it, the person shows up, a note takes them off", async (
   baseURL,
 }) => {
   const name = "Глеб Соколов";
+  const email = uniqueEmail("kit-frequency");
+  await signIn(page, email);
   // Added two months ago, no notes, nothing under "Кто это"
-  const [id] = await replaceContacts([{ name, createdAt: daysAgo(60) }]);
+  const [id] = await replaceContacts(email, [{ name, createdAt: daysAgo(60) }]);
 
   await test.step("nobody has a frequency yet", async () => {
     await page.goto("/keep-in-touch");
@@ -42,7 +46,7 @@ test("frequency: choose it, the person shows up, a note takes them off", async (
 
     await page.reload();
     await expect(frequencyValue(page)).toHaveText("Раз в месяц");
-    await inAnotherBrowser(browser, baseURL, async (other) => {
+    await inAnotherBrowser(browser, baseURL, email, async (other) => {
       await other.goto(`/contacts/${id}`);
       await expect(frequencyValue(other)).toHaveText("Раз в месяц");
     });
@@ -101,8 +105,10 @@ test("own date: the «Своя дата» dialog, a wrong date, change and forge
   baseURL,
 }) => {
   const name = "Вера Иванова";
+  const email = uniqueEmail("kit-date");
+  await signIn(page, email);
   // Talked yesterday: not on the page
-  const [id] = await replaceContacts([
+  const [id] = await replaceContacts(email, [
     {
       name,
       contactFrequency: "monthly",
@@ -163,7 +169,7 @@ test("own date: the «Своя дата» dialog, a wrong date, change and forge
     await expect(frequencyValue(page)).toHaveText(
       `Другое: ${shownDayMonth(today)}`,
     );
-    await inAnotherBrowser(browser, baseURL, async (other) => {
+    await inAnotherBrowser(browser, baseURL, email, async (other) => {
       await other.goto(`/contacts/${id}`);
       await expect(frequencyValue(other)).toHaveText(
         `Другое: ${shownDayMonth(today)}`,
@@ -202,7 +208,9 @@ test("the page: order, rows, group filter, the number on the home page", async (
   baseURL,
 }) => {
   const annaNoteAt = daysAgo(21);
-  await replaceContacts([
+  const email = uniqueEmail("kit-page");
+  await signIn(page, email);
+  await replaceContacts(email, [
     // 3 weeks at "Раз в неделю": overdue 3 times
     {
       name: "Анна Смирнова",
@@ -242,6 +250,7 @@ test("the page: order, rows, group filter, the number on the home page", async (
     {
       name: "Борис Кузнецов",
       createdAt: daysAgo(800),
+      groups: ["Знакомые"],
       notes: [{ createdAt: daysAgo(730) }],
     },
   ]);
@@ -260,7 +269,7 @@ test("the page: order, rows, group filter, the number on the home page", async (
   });
 
   await test.step("another browser: the same people in the same order", async () => {
-    await inAnotherBrowser(browser, baseURL, async (other) => {
+    await inAnotherBrowser(browser, baseURL, email, async (other) => {
       await other.goto("/keep-in-touch");
       await expect(dueRows(other)).toHaveText(everyone);
     });
@@ -344,15 +353,19 @@ function groupLink(page: Page, name: string) {
     .getByRole("link", { name, exact: true });
 }
 
-// A separate browser profile: nothing shared with the first one
+// A separate browser profile: nothing shared with the first one. It signs
+// in under the same email by a link of its own.
 async function inAnotherBrowser(
   browser: Browser,
   baseURL: string | undefined,
+  email: string,
   body: (page: Page) => Promise<void>,
 ) {
-  const context = await browser.newContext({ baseURL });
+  const context = await newVisitor(browser, baseURL);
   try {
-    await body(await context.newPage());
+    const page = await context.newPage();
+    await signIn(page, email);
+    await body(page);
   } finally {
     await context.close();
   }

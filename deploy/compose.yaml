@@ -10,6 +10,17 @@ x-db-settings: &db-settings
   POSTGRES_DB: personal_crm
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /srv/crm/.env}
 
+# Settings of sign-in, for the app. Required on purpose: Docker Compose
+# checks them on every command, so without them deploy.sh stops at its first
+# step, before the backup and the migrations, and the old version keeps
+# running. The address of the site and the sender are not secrets.
+x-app-settings: &app-settings
+  <<: *db-settings
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in /srv/crm/.env}
+  BETTER_AUTH_URL: https://app.linkbook.site
+  SMTP_URL: ${SMTP_URL:?set SMTP_URL in /srv/crm/.env}
+  MAIL_FROM: '"Личная CRM" <noreply@mail.crm.linkbook.site>'
+
 services:
   db:
     # Same image as in local development
@@ -34,7 +45,11 @@ services:
     image: ${APP_IMAGE:?APP_IMAGE is set by deploy.sh}
     profiles: ["tools"]
     command: ["node", "scripts/migrate.cjs"]
-    environment: *db-settings
+    environment:
+      <<: *db-settings
+      # Migration 0006 hands the contacts and groups that exist before
+      # sign-in to the user with this email; the test data goes to him too
+      OWNER_EMAIL: ${OWNER_EMAIL:?set OWNER_EMAIL in /srv/crm/.env}
     depends_on:
       db:
         condition: service_healthy
@@ -43,7 +58,7 @@ services:
   app:
     image: ${APP_IMAGE:?APP_IMAGE is set by deploy.sh}
     restart: unless-stopped
-    environment: *db-settings
+    environment: *app-settings
     ports:
       # Only on this server; nginx serves it to the outside
       - "127.0.0.1:3000:3000"
