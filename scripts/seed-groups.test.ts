@@ -15,18 +15,19 @@ const withGroups = seeded.filter((item) => item.groupNames.length > 0);
 
 async function insertSeeded(
   db: TestDb,
+  owner: string,
   item: SeedContact,
   change: Partial<SeedContact["contact"]> = {},
 ): Promise<number> {
   const [row] = await db
     .insert(contacts)
-    .values({ ...item.contact, ...change })
+    .values({ ...item.contact, ownerId: owner, ...change })
     .returning({ id: contacts.id });
   return row.id;
 }
 
-const groupNamesOf = async (db: TestDb, id: number) =>
-  (await listContactGroups(db, id)).map((group) => group.name).sort();
+const groupNamesOf = async (db: TestDb, owner: string, id: number) =>
+  (await listContactGroups(db, owner, id)).map((group) => group.name).sort();
 
 const total = async (
   db: TestDb,
@@ -35,23 +36,23 @@ const total = async (
 
 describe("pnpm db:seed on a filled database", () => {
   it("Тестовые контакты без групп", async () => {
-    await withRollback(async (db) => {
+    await withRollback(async (db, owner) => {
       const ids: number[] = [];
       for (const item of seeded) {
-        ids.push(await insertSeeded(db, item));
+        ids.push(await insertSeeded(db, owner, item));
       }
       await db.insert(notes).values({ contactId: ids[0], body: "Созвонились" });
       const contactsBefore = await total(db, contacts);
       const notesBefore = await total(db, notes);
 
-      const result = await addTestContactsToGroups(db, seeded);
+      const result = await addTestContactsToGroups(db, owner, seeded);
 
       expect(result.contacts).toBe(withGroups.length);
       expect(result.links).toBe(
         seeded.reduce((sum, item) => sum + item.groupNames.length, 0),
       );
       for (const [index, item] of seeded.entries()) {
-        expect(await groupNamesOf(db, ids[index])).toEqual(
+        expect(await groupNamesOf(db, owner, ids[index])).toEqual(
           [...item.groupNames].sort(),
         );
       }
@@ -61,66 +62,66 @@ describe("pnpm db:seed on a filled database", () => {
   });
 
   it("Свои контакты не трогаются", async () => {
-    await withRollback(async (db) => {
+    await withRollback(async (db, owner) => {
       const [ivan] = await db
         .insert(contacts)
-        .values({ name: "Иван Иванов", about: "сосед по даче" })
+        .values({ ownerId: owner, name: "Иван Иванов", about: "сосед по даче" })
         .returning({ id: contacts.id });
-      await addTestContactsToGroups(db, seeded);
-      expect(await groupNamesOf(db, ivan.id)).toEqual([]);
+      await addTestContactsToGroups(db, owner, seeded);
+      expect(await groupNamesOf(db, owner, ivan.id)).toEqual([]);
     });
   });
 
   it("Изменённый тестовый контакт не трогается", async () => {
-    await withRollback(async (db) => {
-      const id = await insertSeeded(db, withGroups[0], {
+    await withRollback(async (db, owner) => {
+      const id = await insertSeeded(db, owner, withGroups[0], {
         phone: "+7 999 999-99-99",
       });
-      const result = await addTestContactsToGroups(db, seeded);
+      const result = await addTestContactsToGroups(db, owner, seeded);
       expect(result.contacts).toBe(0);
-      expect(await groupNamesOf(db, id)).toEqual([]);
+      expect(await groupNamesOf(db, owner, id)).toEqual([]);
     });
   });
 
   it("Кто уже в группе — не меняется", async () => {
-    await withRollback(async (db) => {
+    await withRollback(async (db, owner) => {
       const item = withGroups.find(
         (candidate) => !candidate.groupNames.includes("Аналитики"),
       )!;
-      const id = await insertSeeded(db, item);
+      const id = await insertSeeded(db, owner, item);
       // Put into "Аналитики" by hand before the seed
-      const analysts = await groupIdByName(db, "Аналитики");
+      const analysts = await groupIdByName(db, owner, "Аналитики");
       await db
         .insert(contactGroups)
         .values({ contactId: id, groupId: analysts });
 
-      await addTestContactsToGroups(db, seeded);
-      expect(await groupNamesOf(db, id)).toEqual(["Аналитики"]);
+      await addTestContactsToGroups(db, owner, seeded);
+      expect(await groupNamesOf(db, owner, id)).toEqual(["Аналитики"]);
     });
   });
 
   it("Повторный запуск", async () => {
-    await withRollback(async (db) => {
+    await withRollback(async (db, owner) => {
       for (const item of seeded) {
-        await insertSeeded(db, item);
+        await insertSeeded(db, owner, item);
       }
-      await addTestContactsToGroups(db, seeded);
+      await addTestContactsToGroups(db, owner, seeded);
       const linksAfterFirst = await total(db, contactGroups);
 
-      const second = await addTestContactsToGroups(db, seeded);
+      const second = await addTestContactsToGroups(db, owner, seeded);
       expect(second).toEqual({ contacts: 0, links: 0 });
       expect(await total(db, contactGroups)).toBe(linksAfterFirst);
     });
   });
 
   it("удалённый контакт пропускается", async () => {
-    await withRollback(async (db) => {
-      const id = await insertSeeded(db, withGroups[0]);
+    await withRollback(async (db, owner) => {
+      const id = await insertSeeded(db, owner, withGroups[0]);
       await db
         .update(contacts)
         .set({ deletedAt: new Date() })
         .where(eq(contacts.id, id));
-      const result = await addTestContactsToGroups(db, seeded);
+      const result = await addTestContactsToGroups(db, owner, seeded);
       expect(result.contacts).toBe(0);
       expect(
         await db

@@ -2,12 +2,13 @@
 // transaction), like due.ts: no "server-only", no Next.js, so tests run it
 // on the real test database. The app calls it through queries.ts.
 
-import { asc, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import { contacts } from "@/db/schema";
 import type { Database } from "@/db/types";
 
-export async function selectContactList(db: Database) {
+// Only the contacts of this user: someone else's are not in the list
+export async function selectContactList(db: Database, ownerId: string) {
   return (
     db
       .select({
@@ -29,7 +30,7 @@ export async function selectContactList(db: Database) {
         )`,
       })
       .from(contacts)
-      .where(isNull(contacts.deletedAt))
+      .where(and(eq(contacts.ownerId, ownerId), isNull(contacts.deletedAt)))
       // Russian ICU collation compares word by word, like a phone book:
       // "Александр Беляев" comes before "Александра Кузнецова"
       .orderBy(sql`${contacts.name} collate "ru-x-icu"`, asc(contacts.id))

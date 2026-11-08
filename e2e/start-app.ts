@@ -30,6 +30,16 @@ async function main() {
       ...process.env,
       // Wins over the settings in .env (see src/db/url.ts)
       DATABASE_URL: urls.testUrl,
+      // Sign-in: the links in emails point at this very app. The secret is
+      // a throwaway one for this throwaway database; emails go to Mailpit.
+      BETTER_AUTH_URL: `http://127.0.0.1:${port}`,
+      BETTER_AUTH_SECRET:
+        process.env.BETTER_AUTH_SECRET ??
+        "e2e-only-secret-not-for-real-use-0123456789",
+      SMTP_URL: process.env.SMTP_URL ?? "smtp://127.0.0.1:1025",
+      MAIL_FROM:
+        process.env.MAIL_FROM ??
+        '"Личная CRM" <noreply@mail.crm.linkbook.site>',
       PORT: String(port),
       // Reachable only from this computer
       HOSTNAME: "127.0.0.1",

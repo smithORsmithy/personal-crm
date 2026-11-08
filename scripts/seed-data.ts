@@ -8,7 +8,8 @@ type Random = () => number;
 
 export type SeedNote = { body: string; createdAt: Date };
 export type SeedContact = {
-  contact: NewContact;
+  // The owner is put in when the contact is saved
+  contact: Omit<NewContact, "ownerId">;
   notes: SeedNote[];
   // Names of the initial groups the contact is in: none, one or two
   groupNames: string[];

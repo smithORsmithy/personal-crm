@@ -7,6 +7,7 @@ import { getDatabaseUrl, loadEnvFile } from "../src/db/url";
 
 export const TEST_DB_SUFFIX = "_test";
 export const E2E_DB_SUFFIX = "_e2e_test";
+export const MIGRATION_DB_SUFFIX = "_migration_test";
 
 export type TestDatabaseUrls = {
   // The working database: used only to drop and create the test one
@@ -23,6 +24,12 @@ export function getTestDatabaseUrls(): TestDatabaseUrls {
 // unit tests can run at the same time without seeing that data
 export function getE2eDatabaseUrls(): TestDatabaseUrls {
   return testDatabaseUrls(E2E_DB_SUFFIX);
+}
+
+// A database of its own for the test of migrations on existing data: the
+// test drops and creates it again by itself
+export function getMigrationTestDatabaseUrls(): TestDatabaseUrls {
+  return testDatabaseUrls(MIGRATION_DB_SUFFIX);
 }
 
 function testDatabaseUrls(suffix: string): TestDatabaseUrls {

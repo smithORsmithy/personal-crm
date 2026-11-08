@@ -15,22 +15,25 @@ export type ContactInput = z.output<typeof contactSchema>;
 
 export async function createContactWithGroups(
   db: Database,
+  ownerId: string,
   data: ContactInput,
   selection: GroupSelection,
 ): Promise<number> {
   return db.transaction(async (tx) => {
     const [created] = await tx
       .insert(contacts)
-      .values(data)
+      .values({ ...data, ownerId })
       .returning({ id: contacts.id });
-    await setContactGroups(tx, created.id, selection);
+    await setContactGroups(tx, ownerId, created.id, selection);
     return created.id;
   });
 }
 
-// false: the contact is gone (deleted in another browser), nothing is saved
+// false: the contact is gone (deleted in another browser) or is someone
+// else's, nothing is saved
 export async function updateContactWithGroups(
   db: Database,
+  ownerId: string,
   id: number,
   data: ContactInput,
   selection: GroupSelection,
@@ -39,12 +42,18 @@ export async function updateContactWithGroups(
     const updated = await tx
       .update(contacts)
       .set(data)
-      .where(and(eq(contacts.id, id), isNull(contacts.deletedAt)))
+      .where(
+        and(
+          eq(contacts.id, id),
+          eq(contacts.ownerId, ownerId),
+          isNull(contacts.deletedAt),
+        ),
+      )
       .returning({ id: contacts.id });
     if (updated.length === 0) {
       return false;
     }
-    await setContactGroups(tx, id, selection);
+    await setContactGroups(tx, ownerId, id, selection);
     return true;
   });
 }
