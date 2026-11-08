@@ -308,6 +308,11 @@ test("Старая вкладка после смены пользователя
     // When A comes back: no new note, the same frequency, not deleted
     await first.getByRole("button", { name: "Выйти" }).click();
     await first.getByRole("button", { name: "Да, выйти" }).click();
+    // Signed out for real before signing in: otherwise the next page can
+    // cut off the sign-out request, and B stays signed in
+    await expect(
+      first.getByRole("heading", { name: "Вход", level: 1 }),
+    ).toBeVisible();
     await signIn(first, emailA);
     await expect(contactRow(first, "Глеб Соколов")).toBeVisible();
     await first.goto(`/contacts/${id}`);

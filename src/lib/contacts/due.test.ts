@@ -14,7 +14,9 @@ import {
   hasContactsWithFrequency,
   selectDueContacts,
 } from "./due";
+import type { FrequencyChoice } from "./form-values";
 import { frequencyDisplay, type ContactFrequency } from "./frequency";
+import { createContactWithGroups } from "./save";
 
 const NOW = new Date("2026-11-06T12:00:00Z");
 const MINUTE = 60 * 1000;
@@ -679,6 +681,71 @@ describe("Keep in touch: filter by group", () => {
         .set({ deletedAt: NOW })
         .where(eq(groups.id, friends));
       expect(await selectDueContacts(db, owner, NOW, friends)).toEqual([]);
+    });
+  });
+});
+
+describe("Keep in touch: frequency chosen in the add form", () => {
+  // "Добавить контакт" with "Как часто общаться" chosen in the form
+  async function addByForm(
+    db: Database,
+    owner: string,
+    name: string,
+    choice: FrequencyChoice,
+  ): Promise<number> {
+    return createContactWithGroups(
+      db,
+      owner,
+      { name, about: null, howWeMet: null, phone: null, email: null },
+      { groupIds: [], newGroups: [] },
+      choice,
+    );
+  }
+
+  async function addedAt(db: Database, id: number): Promise<Date> {
+    const [row] = await db
+      .select({ createdAt: contacts.createdAt })
+      .from(contacts)
+      .where(eq(contacts.id, id));
+    return row.createdAt;
+  }
+
+  async function databaseToday(db: Database): Promise<string> {
+    const [{ today }] = (await db.execute(
+      sql`select current_date::text as today`,
+    )) as unknown as { today: string }[];
+    return today;
+  }
+
+  it("Обычная частота не делает контакт просроченным сразу", async () => {
+    await withRollback(async (db, owner) => {
+      const id = await addByForm(db, owner, "Вера", { frequency: "weekly" });
+
+      // Right after adding: not on the page, not in the number
+      expect(
+        await dueAt(db, owner, minutesAfter(await addedAt(db, id), 1)),
+      ).not.toContain("Вера");
+      expect(await countDueContacts(db, owner)).toBe(0);
+      // The week counts from the moment of adding: there are no notes yet
+      await expectTermEnds(
+        db,
+        owner,
+        "Вера",
+        new Date((await addedAt(db, id)).getTime() + 7 * DAY),
+      );
+    });
+  });
+
+  it("Сегодняшняя своя дата при добавлении", async () => {
+    await withRollback(async (db, owner) => {
+      const [, month, day] = (await databaseToday(db)).split("-").map(Number);
+      await addByForm(db, owner, "Вера", {
+        frequency: "on_date",
+        dayMonth: { day, month },
+      });
+      // At once, by the database clock
+      expect(names(await selectDueContacts(db, owner))).toEqual(["Вера"]);
+      expect(await countDueContacts(db, owner)).toBe(1);
     });
   });
 });

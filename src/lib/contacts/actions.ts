@@ -6,22 +6,20 @@ import { after } from "next/server";
 
 import { getDb } from "@/db";
 import { logDbError } from "@/db/log-error";
-import { requireUserId } from "@/lib/auth/current-user";
+import { requireUserId, requireUserIdForSave } from "@/lib/auth/current-user";
 
 import {
   contactGoneMessage,
+  createContactCommand,
   saveFailedMessage,
+  saveFailedState,
   setContactDateCommand,
   setContactFrequencyCommand,
   type ContactDateFormState,
+  type ContactFormState,
   type ContactFrequencyState,
 } from "./commands";
-import {
-  parseContactForm,
-  readContactValues,
-  type ContactField,
-  type ContactFormValues,
-} from "./form-values";
+import { parseContactForm, readContactValues } from "./form-values";
 import type { RegularFrequency } from "./frequency";
 import { KEEP_DELETED_SECONDS } from "@/lib/undo-window";
 import {
@@ -30,23 +28,18 @@ import {
   eraseDeletedContacts,
   restoreContactCommand,
 } from "./manage";
-import { createContactWithGroups, updateContactWithGroups } from "./save";
+import { updateContactWithGroups } from "./save";
 import { parseId } from "./validation";
 
 // Every action starts with requireUserId(): who is asking is known from the
 // session on the server, never from what the browser sends. The functions
 // below take that user and touch only their contacts.
 
-export type { ContactDateFormState, ContactFrequencyState } from "./commands";
-
-export type ContactFormState = {
-  values?: ContactFormValues;
-  errors?: Partial<Record<ContactField, string[]>>;
-  message?: string;
-  // The groups chosen in the form, so an error does not lose them
-  groupIds?: number[];
-  newGroups?: string[];
-};
+export type {
+  ContactDateFormState,
+  ContactFormState,
+  ContactFrequencyState,
+} from "./commands";
 
 export type NoteFormState = {
   body?: string;
@@ -66,32 +59,19 @@ export async function createContact(
   _prevState: ContactFormState,
   formData: FormData,
 ): Promise<ContactFormState> {
-  const ownerId = await requireUserId();
-  const parsed = parseContactForm(formData);
-  const selection = { groupIds: parsed.groupIds, newGroups: parsed.newGroups };
-  if (!parsed.ok) {
-    return { ...selection, values: parsed.values, errors: parsed.errors };
+  // The database may be down already here: then the usual message under
+  // the form, not the error page
+  const ownerId = await requireUserIdForSave();
+  if (!ownerId) {
+    return saveFailedState(formData);
   }
-
-  let id: number;
-  try {
-    id = await createContactWithGroups(
-      getDb(),
-      ownerId,
-      parsed.data,
-      selection,
-    );
-  } catch (error) {
-    logDbError("Failed to create contact", error);
-    return {
-      ...selection,
-      values: readContactValues(formData),
-      message: saveFailedMessage,
-    };
+  const result = await createContactCommand(getDb(), ownerId, formData);
+  if (!result.ok) {
+    return result.state;
   }
 
   revalidatePath("/", "layout");
-  redirect(`/?added=${id}`);
+  redirect(`/?added=${result.id}`);
 }
 
 export async function updateContact(

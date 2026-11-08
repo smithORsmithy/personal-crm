@@ -45,6 +45,10 @@ export const frequencyIntervals: Record<RegularFrequency, string> = {
 
 export type DayMonth = { day: number; month: number };
 
+// Under "День и месяц", in the card's dialog and in the add form
+export const invalidDateMessage =
+  "Проверьте дату: день и месяц через точку, например 16.12";
+
 // Day and month separated by a dot, the leading zero is optional:
 // "16.12", "5.1". Only a dot: a comma or other separators are rejected.
 const dayMonthPattern = /^(\d{1,2})\.(\d{1,2})$/;

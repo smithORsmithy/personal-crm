@@ -9,20 +9,29 @@ import { contacts } from "@/db/schema";
 import type { Database } from "@/db/types";
 import { setContactGroups, type GroupSelection } from "@/lib/groups/store";
 
+import type { FrequencyChoice } from "./form-values";
+import { ownDateColumns } from "./own-date";
 import type { contactSchema } from "./validation";
 
 export type ContactInput = z.output<typeof contactSchema>;
 
+// "Как часто общаться" from the add form is saved in the same go:
+// a contact is never added with its frequency lost
 export async function createContactWithGroups(
   db: Database,
   ownerId: string,
   data: ContactInput,
   selection: GroupSelection,
+  choice: FrequencyChoice = { frequency: null },
 ): Promise<number> {
   return db.transaction(async (tx) => {
+    const frequencyColumns =
+      choice.frequency === "on_date"
+        ? await ownDateColumns(tx, choice.dayMonth)
+        : { contactFrequency: choice.frequency };
     const [created] = await tx
       .insert(contacts)
-      .values({ ...data, ownerId })
+      .values({ ...data, ...frequencyColumns, ownerId })
       .returning({ id: contacts.id });
     await setContactGroups(tx, ownerId, created.id, selection);
     return created.id;

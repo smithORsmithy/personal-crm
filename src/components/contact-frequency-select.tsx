@@ -2,6 +2,10 @@
 
 import { useActionState, useOptimistic, useState, useTransition } from "react";
 
+import {
+  FrequencyOptions,
+  NO_FREQUENCY_VALUE as NONE,
+} from "@/components/frequency-options";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,14 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type {
   ContactDateFormState,
   ContactFrequencyState,
@@ -29,9 +26,6 @@ import type {
 import {
   formatDayMonth,
   frequencyDisplay,
-  frequencyLabels,
-  NO_FREQUENCY_LABEL,
-  regularFrequencies,
   type ContactFrequency,
   type RegularFrequency,
 } from "@/lib/contacts/frequency";
@@ -49,9 +43,6 @@ type Choice = {
   frequency: ContactFrequency | null;
   contactDate: string | null;
 };
-
-// The select needs a value for "Не задано" too
-const NONE = "none";
 
 // "Как часто общаться" in the card. A frequency is saved as soon as it is
 // chosen; "Другое…" opens the "Своя дата" dialog instead, every time,
@@ -108,20 +99,7 @@ export function ContactFrequencySelect({
             {() => frequencyDisplay(shown.frequency, shown.contactDate)}
           </SelectValue>
         </SelectTrigger>
-        <SelectContent
-          align="start"
-          sideOffset={6}
-          alignItemWithTrigger={false}
-        >
-          <SelectItem value={NONE}>{NO_FREQUENCY_LABEL}</SelectItem>
-          {regularFrequencies.map((value) => (
-            <SelectItem key={value} value={value}>
-              {frequencyLabels[value]}
-            </SelectItem>
-          ))}
-          <SelectSeparator />
-          <SelectItem value="on_date">{frequencyLabels.on_date}</SelectItem>
-        </SelectContent>
+        <FrequencyOptions />
       </Select>
 
       {error && (
