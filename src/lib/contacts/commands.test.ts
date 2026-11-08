@@ -7,7 +7,12 @@ import type { Database } from "@/db/types";
 import { withRollback, withUnreachableDb } from "../../../test/db";
 import { addContact } from "../../../test/fixtures";
 
-import { setContactDateCommand, setContactFrequencyCommand } from "./commands";
+import {
+  createContactCommand,
+  saveFailedState,
+  setContactDateCommand,
+  setContactFrequencyCommand,
+} from "./commands";
 import { frequencyDisplay, nearestDate, parseDayMonth } from "./frequency";
 
 const saveFailed =
@@ -161,6 +166,225 @@ describe("Saving fails", () => {
         input: "16.12",
         error: saveFailed,
       });
+    });
+  });
+});
+
+// "Добавить контакт": the contact's fields, its groups and "Как часто
+// общаться" checked together and saved in one go
+describe("Adding a contact with a frequency", () => {
+  function formOf(fields: [string, string][]): FormData {
+    const formData = new FormData();
+    for (const [key, value] of fields) {
+      formData.append(key, value);
+    }
+    return formData;
+  }
+
+  async function namesOf(db: Database, owner: string): Promise<string[]> {
+    const rows = await db
+      .select({ name: contacts.name })
+      .from(contacts)
+      .where(eq(contacts.ownerId, owner));
+    return rows.map((row) => row.name);
+  }
+
+  it("добавление с частотой возвращает номер нового контакта", async () => {
+    await withRollback(async (db, owner) => {
+      const result = await createContactCommand(
+        db,
+        owner,
+        formOf([
+          ["name", "Вера"],
+          ["frequency", "monthly"],
+        ]),
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(await shownInCard(db, result.id)).toBe("Раз в месяц");
+      }
+    });
+  });
+
+  it("Такой даты не бывает в форме", async () => {
+    await withRollback(async (db, owner) => {
+      const result = await createContactCommand(
+        db,
+        owner,
+        formOf([
+          ["name", "Вера"],
+          ["frequency", "on_date"],
+          ["dayMonth", "31.02"],
+        ]),
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        state: {
+          values: { name: "Вера" },
+          frequency: "on_date",
+          dayMonth: "31.02",
+          dayMonthError: invalidDate,
+        },
+      });
+      expect(await namesOf(db, owner)).not.toContain("Вера");
+    });
+  });
+
+  it("Не дата в форме", async () => {
+    await withRollback(async (db, owner) => {
+      for (const dayMonth of ["завтра", "16,12", ""]) {
+        const result = await createContactCommand(
+          db,
+          owner,
+          formOf([
+            ["name", "Вера"],
+            ["frequency", "on_date"],
+            ["dayMonth", dayMonth],
+          ]),
+        );
+        expect(result).toMatchObject({
+          ok: false,
+          state: { dayMonth, dayMonthError: invalidDate },
+        });
+      }
+      expect(await namesOf(db, owner)).not.toContain("Вера");
+    });
+  });
+
+  it("Неверная дата и пустое имя", async () => {
+    await withRollback(async (db, owner) => {
+      const before = await namesOf(db, owner);
+      const result = await createContactCommand(
+        db,
+        owner,
+        formOf([
+          ["name", "   "],
+          ["frequency", "on_date"],
+          ["dayMonth", "31.02"],
+        ]),
+      );
+      // Both messages at once, each under its own field
+      expect(result).toMatchObject({
+        ok: false,
+        state: {
+          errors: { name: ["Укажите имя"] },
+          dayMonthError: invalidDate,
+        },
+      });
+      expect(await namesOf(db, owner)).toEqual(before);
+    });
+  });
+
+  it("Ошибка в имени не сбрасывает частоту", async () => {
+    await withRollback(async (db, owner) => {
+      const result = await createContactCommand(
+        db,
+        owner,
+        formOf([
+          ["name", "   "],
+          ["frequency", "quarterly"],
+        ]),
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        state: { errors: { name: ["Укажите имя"] }, frequency: "quarterly" },
+      });
+      if (!result.ok) {
+        expect(result.state.dayMonthError).toBeUndefined();
+      }
+    });
+  });
+
+  it("Ошибка в имени не сбрасывает свою дату", async () => {
+    await withRollback(async (db, owner) => {
+      const result = await createContactCommand(
+        db,
+        owner,
+        formOf([
+          ["name", "   "],
+          ["frequency", "on_date"],
+          ["dayMonth", "16.12"],
+        ]),
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        state: {
+          errors: { name: ["Укажите имя"] },
+          frequency: "on_date",
+          dayMonth: "16.12",
+        },
+      });
+      if (!result.ok) {
+        expect(result.state.dayMonthError).toBeUndefined();
+      }
+    });
+  });
+
+  // Moved here from the action: the groups still come back after an error
+  it("Ошибка в форме не сбрасывает группы", async () => {
+    await withRollback(async (db, owner) => {
+      const result = await createContactCommand(
+        db,
+        owner,
+        formOf([
+          ["name", ""],
+          ["groupId", "4"],
+          ["newGroup", "Йога"],
+          ["frequency", "weekly"],
+        ]),
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        state: { groupIds: [4], newGroups: ["Йога"], frequency: "weekly" },
+      });
+    });
+  });
+
+  it("База данных недоступна при добавлении контакта с частотой", async () => {
+    await withUnreachableDb(async (db, owner) => {
+      const result = await createContactCommand(
+        db,
+        owner,
+        formOf([
+          ["name", "Вера"],
+          ["frequency", "monthly"],
+        ]),
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        state: {
+          message: saveFailed,
+          values: { name: "Вера" },
+          frequency: "monthly",
+        },
+      });
+    });
+  });
+});
+
+// The database is down before the save even starts: who is signed in
+// cannot be checked (src/lib/auth/session-check.ts). The form still gets
+// the message and everything chosen and typed.
+describe("Adding a contact while sign-in cannot be checked", () => {
+  it("База данных недоступна при добавлении контакта с частотой: всё введённое остаётся", () => {
+    const formData = new FormData();
+    for (const [key, value] of [
+      ["name", "Вера"],
+      ["phone", "+7 900 1"],
+      ["groupId", "4"],
+      ["newGroup", "Йога"],
+      ["frequency", "on_date"],
+      ["dayMonth", "16.12"],
+    ]) {
+      formData.append(key, value);
+    }
+    expect(saveFailedState(formData)).toMatchObject({
+      message: saveFailed,
+      values: { name: "Вера", phone: "+7 900 1" },
+      groupIds: [4],
+      newGroups: ["Йога"],
+      frequency: "on_date",
+      dayMonth: "16.12",
     });
   });
 });

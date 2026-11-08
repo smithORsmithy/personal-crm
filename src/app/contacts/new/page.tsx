@@ -30,6 +30,7 @@ async function NewContactForm() {
     <ContactForm
       action={createContact}
       groups={await listGroups()}
+      withFrequency
       submitLabel="Добавить контакт"
       pendingLabel="Добавляю…"
       cancelHref="/"

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 
 import { getAuth } from "./index";
+import { checkSignedInUser } from "./session-check";
 
 export type CurrentUser = { id: string; email: string };
 
@@ -29,4 +30,16 @@ export async function requireUserId(): Promise<string> {
     redirect("/login");
   }
   return user.id;
+}
+
+// The same for an action that saves a form, with one difference: when the
+// database is down and cannot tell who is signed in, the answer is null
+// instead of the error page. The action then shows «Не получилось
+// сохранить…» and keeps what was typed.
+export async function requireUserIdForSave(): Promise<string | null> {
+  const check = await checkSignedInUser(getAuth(), await headers());
+  if (check.status === "signed-out") {
+    redirect("/login");
+  }
+  return check.status === "signed-in" ? check.userId : null;
 }

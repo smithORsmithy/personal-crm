@@ -5,6 +5,13 @@ import { z } from "zod";
 
 import { parseGroupName } from "@/lib/groups/names";
 
+import {
+  invalidDateMessage,
+  parseDayMonth,
+  regularFrequencies,
+  type DayMonth,
+  type RegularFrequency,
+} from "./frequency";
 import { contactSchema, parseId } from "./validation";
 
 export const contactFields = [
@@ -100,4 +107,51 @@ export function parseContactForm(formData: FormData): ParsedContactForm {
     };
   }
   return { ok: true, data: parsed.data, groupIds, newGroups };
+}
+
+// "Как часто общаться" in the add form: what is saved with the contact
+export type FrequencyChoice =
+  | { frequency: null }
+  | { frequency: RegularFrequency }
+  | { frequency: "on_date"; dayMonth: DayMonth };
+
+export type ParsedFrequencyChoice = {
+  // What was chosen and typed, to show again after an error
+  frequency: string;
+  dayMonth: string;
+} & ({ ok: true; choice: FrequencyChoice } | { ok: false; error: string });
+
+// The list sends "frequency"; the field under it sends "dayMonth" only
+// while «Другое…» is chosen, and only then it counts. Anything not in the
+// list (the browser was tampered with) is "Не задано": nothing odd is saved.
+export function parseFrequencyChoice(
+  formData: FormData,
+): ParsedFrequencyChoice {
+  const frequency = textOf(formData, "frequency");
+  const dayMonth = textOf(formData, "dayMonth");
+
+  if (frequency === "on_date") {
+    const parsed = parseDayMonth(dayMonth);
+    return parsed
+      ? {
+          ok: true,
+          choice: { frequency: "on_date", dayMonth: parsed },
+          frequency,
+          dayMonth,
+        }
+      : { ok: false, error: invalidDateMessage, frequency, dayMonth };
+  }
+
+  const regular = regularFrequencies.find((value) => value === frequency);
+  return {
+    ok: true,
+    choice: { frequency: regular ?? null },
+    frequency,
+    dayMonth,
+  };
+}
+
+function textOf(formData: FormData, field: string): string {
+  const value = formData.get(field);
+  return typeof value === "string" ? value : "";
 }

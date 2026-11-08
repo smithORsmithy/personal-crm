@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 
+import { ContactFrequencyField } from "@/components/contact-frequency-field";
 import {
   GroupsField,
   type FieldGroup as GroupOption,
@@ -28,6 +29,7 @@ export function ContactForm({
   defaultValues = emptyContactValues,
   groups,
   selectedGroups = [],
+  withFrequency = false,
   submitLabel,
   pendingLabel,
   cancelHref,
@@ -40,6 +42,9 @@ export function ContactForm({
   // All groups to choose from, and the ones the person is in now
   groups: GroupOption[];
   selectedGroups?: GroupOption[];
+  // "Как часто общаться": only in the add form. In «Изменить» it is not
+  // there, the card changes it.
+  withFrequency?: boolean;
   submitLabel: string;
   pendingLabel: string;
   cancelHref: string;
@@ -130,6 +135,14 @@ export function ContactForm({
             <FieldError>{errorOf("email")}</FieldError>
           </Field>
         </div>
+
+        {withFrequency && (
+          <ContactFrequencyField
+            defaultFrequency={state.frequency}
+            defaultDayMonth={state.dayMonth}
+            dayMonthError={state.dayMonthError}
+          />
+        )}
 
         <Field>
           <FieldLabel htmlFor="groups-field">Группы</FieldLabel>
