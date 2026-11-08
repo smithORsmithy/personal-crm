@@ -40,6 +40,16 @@ async function visitor(
   return { context, page: await context.newPage() };
 }
 
+// The person comes back to a tab that stayed open. A headless browser shows
+// every tab at once and never switches between them, so the event a browser
+// sends to a tab on return is sent here by hand.
+async function comeBackTo(page: Page) {
+  await page.bringToFront();
+  await page.evaluate(() => {
+    setTimeout(() => window.dispatchEvent(new Event("focus")), 0);
+  });
+}
+
 // «Выйти» and the answer «Да, выйти» in the window that asks
 async function signOut(page: Page) {
   await header(page).getByRole("button", { name: "Выйти" }).click();
@@ -74,6 +84,45 @@ test.describe("Без входа — только страница входа", 
 
     await expect(contactsHeading(page)).toBeVisible();
     await expect(signInHeading(page)).toBeHidden();
+  });
+
+  // Found in the manual check: the sign-in page stayed open in one tab while
+  // the person signed in in another tab of the same browser
+  test("Вошедший отправляет форму входа из старой вкладки", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    const other = await page.context().newPage();
+    await signIn(other, uniqueEmail("anna"));
+
+    await page.bringToFront();
+    await page
+      .getByRole("textbox", { name: "Почта" })
+      .fill(uniqueEmail("boris"));
+    await page.getByRole("button", { name: "Получить ссылку" }).click();
+
+    await expect(contactsHeading(page)).toBeVisible();
+    await expect(page.getByText("Не получилось загрузить данные")).toBeHidden();
+  });
+
+  test("Заметка в старой вкладке после выхода", async ({ page }) => {
+    const email = uniqueEmail("anna");
+    await signIn(page, email);
+    const [id] = await replaceContacts(email, [{ name: "Глеб Соколов" }]);
+    await page.goto(`/contacts/${id}`);
+    await expect(
+      page.getByRole("heading", { name: "Глеб Соколов", level: 1 }),
+    ).toBeVisible();
+    const other = await page.context().newPage();
+    await other.goto("/");
+    await signOut(other);
+
+    await page.bringToFront();
+    await page.getByRole("textbox", { name: "Новая заметка" }).fill("Заметка");
+    await page.getByRole("button", { name: "Добавить заметку" }).click();
+
+    await expect(signInHeading(page)).toBeVisible();
+    await expect(page.getByText("Не получилось загрузить данные")).toBeHidden();
   });
 });
 
@@ -457,6 +506,58 @@ test.describe("Почта в шапке и выход", () => {
     } finally {
       await context.close();
     }
+  });
+
+  test("«Выйти» в старой вкладке, когда уже вышла", async ({ page }) => {
+    await signIn(page, uniqueEmail("anna"));
+    const other = await page.context().newPage();
+    await other.goto("/");
+    await signOut(other);
+
+    await page.bringToFront();
+    await signOut(page);
+
+    await expect(page.getByText("Не получилось загрузить данные")).toBeHidden();
+  });
+});
+
+test.describe("Старая вкладка обновляется сама", () => {
+  test("Возврат в старую вкладку после смены пользователя", async ({
+    page,
+  }) => {
+    const anna = uniqueEmail("anna");
+    const boris = uniqueEmail("boris");
+    await signIn(page, anna);
+    const [id] = await replaceContacts(anna, [{ name: "Глеб Соколов" }]);
+    await page.goto(`/contacts/${id}`);
+    await expect(
+      page.getByRole("heading", { name: "Глеб Соколов", level: 1 }),
+    ).toBeVisible();
+    const other = await page.context().newPage();
+    await other.goto("/");
+    await signOut(other);
+    await signIn(other, boris);
+
+    await comeBackTo(page);
+
+    await expect(header(page)).toContainText(boris);
+    await expect(header(page)).not.toContainText(anna);
+    await expect(
+      page.getByRole("heading", { name: "Контакт не найден" }),
+    ).toBeVisible();
+    await expect(page.getByText("Глеб Соколов")).toBeHidden();
+  });
+
+  test("Возврат в старую вкладку после выхода", async ({ page }) => {
+    await signIn(page, uniqueEmail("anna"));
+    const other = await page.context().newPage();
+    await other.goto("/");
+    await signOut(other);
+
+    await comeBackTo(page);
+
+    await expect(signInHeading(page)).toBeVisible();
+    await expect(contactsHeading(page)).toBeHidden();
   });
 });
 

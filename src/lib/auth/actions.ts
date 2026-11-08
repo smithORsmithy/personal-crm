@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { getDb } from "@/db";
 
+import { getCurrentUser } from "./current-user";
 import { getAuth } from "./index";
 import {
   invalidEmailMessage,
@@ -29,6 +30,12 @@ export async function requestSignInLinkAction(
   _prevState: SignInFormState,
   formData: FormData,
 ): Promise<SignInFormState> {
+  // The form in a tab opened before signing in in another tab: already
+  // signed in, so to the list, as when opening the sign-in page
+  if (await getCurrentUser()) {
+    redirect("/");
+  }
+
   const raw = formData.get("email");
   const input = typeof raw === "string" ? raw : "";
 

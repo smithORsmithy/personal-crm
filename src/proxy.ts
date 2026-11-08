@@ -14,10 +14,17 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   let answer = NextResponse.next();
-  if (!response && path !== "/login") {
-    answer = redirectTo(request, "/login");
-  } else if (response && path === "/login") {
-    answer = redirectTo(request, "/");
+  // A form can come from a tab opened before signing in or out in another
+  // tab. Such a page cannot follow a plain redirect and shows the error page,
+  // so forms are let through and the action answers itself: without a
+  // sign-in it leads to the sign-in page (requireUserId), the sign-in form of
+  // a signed-in user leads to the list (requestSignInLinkAction).
+  if (!isServerAction(request)) {
+    if (!response && path !== "/login") {
+      answer = redirectTo(request, "/login");
+    } else if (response && path === "/login") {
+      answer = redirectTo(request, "/");
+    }
   }
 
   // Better Auth moves the end of a sign-in ahead once a day. Pages cannot
@@ -29,6 +36,11 @@ export async function proxy(request: NextRequest) {
     answer.headers.append("set-cookie", cookie);
   }
   return answer;
+}
+
+// Next.js sends a server action as a POST with this header
+function isServerAction(request: NextRequest): boolean {
+  return request.method === "POST" && request.headers.has("next-action");
 }
 
 function redirectTo(request: NextRequest, path: string): NextResponse {
