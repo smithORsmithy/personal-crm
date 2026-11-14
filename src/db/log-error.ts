@@ -27,21 +27,23 @@ const SAFE_FIELDS = [
 // Guards against an error whose cause chain loops back on itself
 const MAX_CAUSE_DEPTH = 5;
 
-type ErrorSummary = { type: string; [field: string]: unknown };
+export type ErrorSummary = { type: string; [field: string]: unknown };
 
-function describeError(error: unknown, depth = 0): ErrorSummary {
+// The safe fields of an error and of its causes. Also used for the messages
+// of the sign-in library (src/lib/auth/library-log.ts).
+export function describeError(error: unknown, depth = 0): ErrorSummary {
   if (!(error instanceof Error)) {
     return { type: typeof error };
   }
 
   const summary: ErrorSummary = { type: error.name };
-  if (error instanceof DrizzleQueryError) {
+  const fields = error as unknown as Record<string, unknown>;
+  if (isDrizzleQueryError(error, fields)) {
     // Its name is plain "Error"; the values are in error.params, left out
     summary.type = "DrizzleQueryError";
-    summary.query = error.query;
+    summary.query = fields.query;
   }
 
-  const fields = error as unknown as Record<string, unknown>;
   for (const field of SAFE_FIELDS) {
     const value = fields[field];
     if (typeof value === "string" || typeof value === "number") {
@@ -53,4 +55,20 @@ function describeError(error: unknown, depth = 0): ErrorSummary {
     summary.cause = describeError(error.cause, depth + 1);
   }
   return summary;
+}
+
+// A failed Drizzle query: its class, or its fields. Next.js puts a copy of
+// drizzle-orm into each part of the build, while the connection to the
+// database is one for the whole app (getDb() keeps it on globalThis), so its
+// errors may be made by another copy's class. Drizzle always sends the values
+// apart, in params, and puts $1, $2 in the query text. A postgres.js error
+// also has a query, but keeps its values in "parameters": it is not taken.
+function isDrizzleQueryError(
+  error: Error,
+  fields: Record<string, unknown>,
+): boolean {
+  return (
+    error instanceof DrizzleQueryError ||
+    (typeof fields.query === "string" && Array.isArray(fields.params))
+  );
 }

@@ -7,6 +7,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import type { Auth } from "./create-auth";
+import { signInCheckFailed } from "./session-check";
 
 export async function answerRequest(
   auth: Auth,
@@ -21,11 +22,12 @@ export async function answerRequest(
   } catch (error) {
     // The database is down and cannot tell who is signed in. A form goes on
     // to its action, which shows its own «Не получилось сохранить…» and
-    // keeps what was typed. A page needs the data anyway: the error page.
+    // keeps what was typed. A page needs the data anyway: the error page,
+    // with an error that does not carry the session key (session-check.ts).
     if (isServerAction(request)) {
       return NextResponse.next();
     }
-    throw error;
+    throw signInCheckFailed(error);
   }
   const { headers, response } = session;
 

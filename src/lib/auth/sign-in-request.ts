@@ -39,7 +39,16 @@ export async function requestSignInLink(
     return { status: "invalid" };
   }
 
-  const placeId = await takePlaceInLimit(db, email);
+  let placeId;
+  try {
+    placeId = await takePlaceInLimit(db, email);
+  } catch (error) {
+    // The form shows the error page, as before. Next.js prints a thrown
+    // error whole, and the error of a failed query holds the email: it is
+    // logged here without it, and what goes on has nothing inside.
+    logDbError("Failed to count sign-in emails", error);
+    throw new Error("Could not count sign-in emails");
+  }
   if (placeId === null) {
     return { status: "too-many" };
   }

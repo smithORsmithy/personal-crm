@@ -61,6 +61,25 @@ export function linkIn(mail: SentMail): string {
   return match[0];
 }
 
+// The key of a sign-in in the database: the part of the session cookie before
+// the dot (after the dot is its signature)
+export function sessionKeyOf(cookie: string): string {
+  const match = cookie.match(/better-auth\.session_token=([^;]+)/);
+  if (!match) {
+    throw new Error("No session cookie");
+  }
+  return decodeURIComponent(match[1]).split(".")[0];
+}
+
+// The one-time key in a sign-in link
+export function linkKeyOf(link: string): string {
+  const key = new URL(link).searchParams.get("token");
+  if (!key) {
+    throw new Error("No key in the link");
+  }
+  return key;
+}
+
 // Opens a link the way a browser does: a GET request, no cookies yet
 export async function openLink(
   auth: ReturnType<typeof createAuth>,

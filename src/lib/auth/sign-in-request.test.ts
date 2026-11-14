@@ -2,13 +2,18 @@ import nodemailer from "nodemailer";
 import { eq, sql } from "drizzle-orm";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as schema from "@/db/schema";
 import { signInEmails, users, verifications } from "@/db/schema";
 import type { Database } from "@/db/types";
 
-import { withRollback } from "../../../test/db";
+import { withRollback, withUnreachableDb } from "../../../test/db";
+import {
+  captureConsole,
+  expectNoRequestValues,
+  printed,
+} from "../../../test/console";
 import { createTestAuth, linkIn, openLink, BASE_URL } from "../../../test/auth";
 import { getTestDatabaseUrls } from "../../../test/test-url";
 
@@ -383,5 +388,55 @@ describe("Не больше 3 писем на одну почту за 10 мин
       await client`delete from verifications where value like ${"%" + email + "%"}`;
       await Promise.all(clients.map((client) => client.end()));
     }
+  });
+});
+
+// The form shows the error page, as before; what is logged about it, and
+// what Next.js prints about the error that left the form, has no email
+describe("Запросить ссылку при остановленной базе", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function failedRequest(db: Database) {
+    const { auth } = createTestAuth(db);
+    const log = captureConsole();
+    const error = await requestSignInLink(
+      db,
+      auth,
+      "anna@example.com",
+      headers,
+    ).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    );
+    return { error, text: log.text() };
+  }
+
+  it("база не отвечает", async () => {
+    await withUnreachableDb(async (db) => {
+      const { error, text } = await failedRequest(db);
+
+      expect(error).toBeInstanceOf(Error);
+      expectNoRequestValues(printed(error), ["anna@example.com"]);
+      expectNoRequestValues(text, ["anna@example.com"]);
+      expect(text).toContain("ECONNREFUSED");
+    });
+  });
+
+  it("запрос к базе упал", async () => {
+    await withRollback(async (db) => {
+      // The count of emails fails while the database answers: its values
+      // (the email) are in the error of the query. Rolled back after the test.
+      await db.execute(sql`drop table sign_in_emails`);
+
+      const { error, text } = await failedRequest(db);
+
+      expect(error).toBeInstanceOf(Error);
+      expectNoRequestValues(printed(error), ["anna@example.com"]);
+      expectNoRequestValues(text, ["anna@example.com"]);
+      expect(text).toContain('from "sign_in_emails"');
+      expect(text).toContain("$1");
+    });
   });
 });
