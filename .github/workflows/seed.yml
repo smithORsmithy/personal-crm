@@ -6,8 +6,9 @@ name: Seed test data
 on:
   workflow_dispatch:
 
+# Waits for a running production deploy and never runs next to one
 concurrency:
-  group: deploy
+  group: deploy-prod
   cancel-in-progress: false
 
 jobs:

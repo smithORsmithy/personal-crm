@@ -1,0 +1,229 @@
+name: Deploy prod
+
+# Manual only: a person starts it (Actions -> Deploy prod -> Run workflow).
+# Deploys to production an image that is already built:
+#   - SHA empty: the version of the last green deploy to the test stand;
+#   - SHA given: that version, only if its deploy to the test stand was green
+#     (the fallback way);
+#   - rollback ticked: the production version before the current one, which
+#     the server remembers; no test stand check, the SHA field is ignored.
+# "Green on the test stand" is read from the history of the "staging"
+# environment that "Deploy staging" writes. The deployed SHA is in the
+# summary of the run.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA (leave empty for the last green deploy to the test stand)"
+        required: false
+        default: ""
+      rollback:
+        description: "Rollback: the production version before the current one (SHA is ignored)"
+        type: boolean
+        default: false
+
+# One production deploy at a time (on the server it also has its own lock)
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: prod
+      url: https://app.linkbook.site
+    permissions:
+      contents: read
+      deployments: read
+      packages: read
+    env:
+      APP_URL: https://app.linkbook.site
+      INPUT_SHA: ${{ inputs.sha }}
+      ROLLBACK: ${{ inputs.rollback }}
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+    steps:
+      # The deploy scripts come from the branch the run starts on
+      - name: Only from main
+        if: ${{ github.ref != 'refs/heads/main' }}
+        run: |
+          echo "Run Deploy prod from main, not from $GITHUB_REF_NAME"
+          exit 1
+
+      - uses: actions/checkout@v7.0.1
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host server
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Pick the version
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # States of one deployment to the test stand, newest first. A green
+          # deploy has "success"; it turns "inactive" when a newer one
+          # succeeds, but "success" stays in its history.
+          states() {
+            gh api "repos/$GITHUB_REPOSITORY/deployments/$1/statuses?per_page=100" --jq '.[].state' </dev/null
+          }
+          passed_staging() {
+            local id
+            for id in $(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=staging&sha=$1&per_page=100" --jq '.[].id'); do
+              if grep -qx success <<<"$(states "$id")"; then return 0; fi
+            done
+            return 1
+          }
+          last_green_staging() {
+            local id sha
+            while read -r id sha; do
+              if grep -qx success <<<"$(states "$id")"; then
+                echo "$sha"
+                return 0
+              fi
+            done < <(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=staging&per_page=100" --jq '.[] | "\(.id) \(.sha)"')
+            return 1
+          }
+
+          if [ "$ROLLBACK" = "true" ]; then
+            mode="rollback to the production version before the current one"
+            tag="$(ssh server "cat /srv/crm/deployed-version.previous" 2>/dev/null || true)"
+            if [ -z "$tag" ]; then
+              echo "The server remembers no previous production version: nothing to roll back to"
+              exit 1
+            fi
+          elif [ -n "$INPUT_SHA" ]; then
+            mode="SHA given by hand"
+            tag="$(printf '%s' "$INPUT_SHA" | tr -d '[:space:]' | tr 'A-F' 'a-f')"
+            if ! [[ "$tag" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "SHA must be the full 40-character commit SHA, got: $INPUT_SHA"
+              exit 1
+            fi
+            if ! passed_staging "$tag"; then
+              echo "$tag has no green deploy to the test stand: production takes only versions that passed it"
+              exit 1
+            fi
+          else
+            mode="the last green deploy to the test stand"
+            if ! tag="$(last_green_staging)"; then
+              echo "No green deploy to the test stand found"
+              exit 1
+            fi
+          fi
+          echo "Deploying $tag ($mode)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Copy deploy scripts to the server
+        run: rsync -rlt --delete --chmod=D750,F750 deploy/ server:/srv/crm/deploy/
+
+      # Backup -> migrations -> new version -> /health, see deploy/deploy.sh.
+      # The GHCR login goes on stdin, in case the image has to be pulled.
+      - name: Deploy on the server
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n%s\n' "$REGISTRY_USER" "$REGISTRY_TOKEN" |
+            ssh server "/srv/crm/deploy/deploy.sh prod '$TAG'"
+
+      - name: Check /health from outside
+        run: |
+          for attempt in 1 2 3 4 5; do
+            body=$(curl -fsS --max-time 10 "$APP_URL/health" || true)
+            echo "Attempt $attempt: $body"
+            if printf '%s' "$body" | grep -q "\"version\":\"$TAG\""; then exit 0; fi
+            sleep 5
+          done
+          echo "$APP_URL/health does not answer 200 with version $TAG"
+          exit 1
+
+      - name: Summary
+        if: ${{ always() && steps.pick.outputs.tag != '' }}
+        env:
+          STATUS: ${{ job.status }}
+          MODE: ${{ steps.pick.outputs.mode }}
+        run: |
+          if [ "$STATUS" = "success" ]; then
+            title="Production now runs $TAG"
+          else
+            title="Deploy of $TAG to production FAILED"
+          fi
+          {
+            echo "### $title"
+            echo
+            echo "- Version: $MODE"
+            echo "- Commit: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$TAG"
+            echo "- Check: $APP_URL/health"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+  # After a successful production deploy GHCR keeps the 10 newest builds.
+  # A build is a tagged image plus the manifests inside it (the platform
+  # image and its attestation), which GHCR lists as untagged versions: those
+  # of the kept builds stay, everything else is deleted.
+  cleanup-ghcr:
+    name: Keep the 10 newest builds in GHCR
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      packages: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OWNER: ${{ github.repository_owner }}
+      PACKAGE: personal-crm
+      IMAGE: ghcr.io/smithorsmithy/personal-crm
+      KEEP: 10
+    steps:
+      - uses: docker/login-action@v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete older builds
+        run: |
+          api="users/$OWNER/packages/container/$PACKAGE/versions"
+          # id, digest, number of tags, created
+          versions="$(gh api --paginate "$api?per_page=100" \
+            --jq '.[] | [.id, .name, (.metadata.container.tags | length), .created_at] | @tsv')"
+          kept="$(awk -F'\t' '$3 > 0' <<<"$versions" | sort -t$'\t' -k4,4r | head -n "$KEEP" | cut -f2)"
+          if [ -z "$kept" ]; then
+            echo "No tagged images found: nothing is deleted"
+            exit 0
+          fi
+          keep="$kept"
+          for digest in $kept; do
+            children="$(docker buildx imagetools inspect --raw "$IMAGE@$digest" | jq -r '.manifests[]?.digest')"
+            keep="$keep"$'\n'"$children"
+          done
+          deleted=0
+          while IFS=$'\t' read -r id digest tags created; do
+            if [ -z "$id" ] || grep -qxF "$digest" <<<"$keep"; then continue; fi
+            echo "Delete $digest (created $created, tags: $tags)"
+            gh api -X DELETE "$api/$id" --silent </dev/null
+            deleted=$((deleted + 1))
+          done <<<"$versions"
+          echo "Kept $(wc -l <<<"$kept") builds, deleted $deleted versions"

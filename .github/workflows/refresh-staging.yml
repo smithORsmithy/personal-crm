@@ -1,0 +1,41 @@
+name: Refresh test stand DB
+
+# Manual only. Replaces the test stand's database with the newest
+# production backup (deploy/refresh-staging.sh). Production is not touched.
+# Uses the image that already runs on the test stand: nothing is pulled.
+on:
+  workflow_dispatch:
+
+# Waits for a running deploy to the test stand and never runs next to one
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+    steps:
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Refresh on the server
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" "/srv/crm/deploy/refresh-staging.sh"
+
+      - name: Remove the key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
