@@ -12,6 +12,7 @@ import * as schema from "@/db/schema";
 import { verifications } from "@/db/schema";
 import type { Database } from "@/db/types";
 
+import { logAuthLibraryMessage } from "./library-log";
 import { buildSignInEmail, SIGN_IN_LINK_MINUTES } from "./mail";
 
 const DAY_SECONDS = 24 * 60 * 60;
@@ -63,6 +64,12 @@ export function createAuth({
       ipAddress: { ipAddressHeaders: ["x-real-ip"] },
     },
     telemetry: { enabled: false },
+    // The library's own log goes through the same cleaning as the errors of
+    // contacts and groups: no values of a failed query
+    logger: { log: logAuthLibraryMessage },
+    // An unexpected error under /api/auth goes to the caller instead of being
+    // printed whole by the library: route-answer.ts logs it cleaned
+    onAPIError: { throw: true },
     plugins: [
       magicLink({
         expiresIn: SIGN_IN_LINK_MINUTES * 60,

@@ -2,7 +2,17 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { withRollback, withUnreachableDb } from "../../../test/db";
-import { BASE_URL, createTestAuth, signInAs } from "../../../test/auth";
+import {
+  BASE_URL,
+  createTestAuth,
+  sessionKeyOf,
+  signInAs,
+} from "../../../test/auth";
+import {
+  captureConsole,
+  expectNoRequestValues,
+  printed,
+} from "../../../test/console";
 
 import { answerRequest } from "./proxy-answer";
 
@@ -92,6 +102,32 @@ describe("answerRequest", () => {
       await expect(
         answerRequest(auth, page("/contacts/new", cookie)),
       ).rejects.toThrow();
+    });
+  });
+
+  // What Next.js prints about the error that left the proxy, and what the
+  // proxy logs itself: no session key
+  it("Открыть страницу при остановленной базе", async () => {
+    const cookie = await signedInCookie();
+    await withUnreachableDb(async (db) => {
+      const { auth } = createTestAuth(db);
+      const log = captureConsole();
+
+      const error = await answerRequest(auth, page("/", cookie)).then(
+        () => null,
+        (thrown: unknown) => thrown,
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe("Could not check who is signed in");
+      const values = [sessionKeyOf(cookie), "anna@example.com"];
+      expectNoRequestValues(printed(error), values);
+
+      const text = log.text();
+      expectNoRequestValues(text, values);
+      expect(text).toContain('from "sessions"');
+      expect(text).toContain("$1");
+      expect(text).toContain("ECONNREFUSED");
     });
   });
 });
