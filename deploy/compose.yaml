@@ -1,35 +1,51 @@
-# Production on the server: the app and its own database.
-# Run only through deploy.sh / seed.sh, they pass the image and the .env file:
-#   docker compose -p prod -f /srv/crm/deploy/compose.yaml --env-file /srv/crm/.env ...
-
-name: prod
+# The app and its own database on the server. One file for production and
+# the test stand: the project name (-p prod / -p staging) keeps their
+# containers and database volumes apart.
+# Run only through the scripts in this folder: use_environment in common.sh
+# sets the variables below that are not in .env, and the scripts pass the
+# image, the project and the .env file of the environment:
+#   docker compose -p <prod|staging> -f /srv/crm/deploy/compose.yaml --env-file <its .env> ...
 
 x-db-settings: &db-settings
   POSTGRES_HOST: db
   POSTGRES_USER: crm
   POSTGRES_DB: personal_crm
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /srv/crm/.env}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the .env of the environment}
 
 # Settings of sign-in, for the app. Required on purpose: Docker Compose
 # checks them on every command, so without them deploy.sh stops at its first
 # step, before the backup and the migrations, and the old version keeps
-# running. The address of the site and the sender are not secrets.
+# running. The address of the site and the sender are not secrets: they
+# come from common.sh. The address is the one of this environment, so the
+# link in a sign-in email leads back to where the sign-in was asked for.
 x-app-settings: &app-settings
   <<: *db-settings
-  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in /srv/crm/.env}
-  BETTER_AUTH_URL: https://app.linkbook.site
-  SMTP_URL: ${SMTP_URL:?set SMTP_URL in /srv/crm/.env}
-  MAIL_FROM: '"Личная CRM" <noreply@mail.crm.linkbook.site>'
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in the .env of the environment}
+  BETTER_AUTH_URL: ${APP_URL:?APP_URL is set by common.sh}
+  SMTP_URL: ${SMTP_URL:?set SMTP_URL in the .env of the environment}
+  MAIL_FROM: ${MAIL_FROM:?MAIL_FROM is set by common.sh}
+
+# Container logs go to the server's journal (journald): they outlive the
+# container, so a deploy or a rollback does not wipe them, and the system
+# limits the journal's size. Each line is tagged with the container name:
+#   journalctl -t prod-app-1
+x-logging: &logging
+  driver: journald
+  options:
+    tag: "{{.Name}}"
 
 services:
   db:
     # Same image as in local development
     image: postgres:18
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: crm
       POSTGRES_DB: personal_crm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /srv/crm/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the .env of the environment}
+    # 0 = no limit (production)
+    mem_limit: ${DB_MEMORY_LIMIT:?DB_MEMORY_LIMIT is set by common.sh}
     volumes:
       - pgdata:/var/lib/postgresql
     # No ports: only the app container talks to the database
@@ -44,12 +60,13 @@ services:
   migrate:
     image: ${APP_IMAGE:?APP_IMAGE is set by deploy.sh}
     profiles: ["tools"]
+    logging: *logging
     command: ["node", "scripts/migrate.cjs"]
     environment:
       <<: *db-settings
       # Migration 0006 hands the contacts and groups that exist before
       # sign-in to the user with this email; the test data goes to him too
-      OWNER_EMAIL: ${OWNER_EMAIL:?set OWNER_EMAIL in /srv/crm/.env}
+      OWNER_EMAIL: ${OWNER_EMAIL:?set OWNER_EMAIL in the .env of the environment}
     depends_on:
       db:
         condition: service_healthy
@@ -59,9 +76,12 @@ services:
     image: ${APP_IMAGE:?APP_IMAGE is set by deploy.sh}
     restart: unless-stopped
     environment: *app-settings
+    logging: *logging
+    # 0 = no limit (production)
+    mem_limit: ${APP_MEMORY_LIMIT:?APP_MEMORY_LIMIT is set by common.sh}
     ports:
       # Only on this server; nginx serves it to the outside
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:${APP_PORT:?APP_PORT is set by common.sh}:3000"
     depends_on:
       db:
         condition: service_healthy

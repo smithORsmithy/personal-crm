@@ -149,7 +149,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4.4.1
 
-      # Only checks that the image builds. After merge deploy.yml builds it
+      # Only checks that the image builds. After merge deploy-staging.yml builds it
       # again and pushes it to GHCR.
       - name: Build the image (not pushed)
         uses: docker/build-push-action@v7.4.0

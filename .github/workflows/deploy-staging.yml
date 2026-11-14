@@ -1,29 +1,25 @@
-name: Deploy
+name: Deploy staging
 
+# After every merge into main: builds the image (tag = commit SHA), pushes it
+# to GHCR and deploys it to the test stand. Production gets the same image
+# only by hand, with the "Deploy prod" workflow, and only a version whose
+# deploy here was green: it checks the history of the "staging" environment
+# (GitHub -> Deployments) that the job below writes.
 on:
   push:
     branches: [main]
-  # Manual run. With image_tag it deploys an already built version instead
-  # of building a new one: that is the manual rollback.
-  workflow_dispatch:
-    inputs:
-      image_tag:
-        description: "Commit SHA of an existing image (leave empty to build main)"
-        required: false
-        default: ""
 
-# One deploy at a time; a new push waits for the running one
+# One run at a time; a new push waits for the running one (on the server
+# each environment also has its own lock)
 concurrency:
-  group: deploy
+  group: deploy-staging
   cancel-in-progress: false
 
 env:
   IMAGE: ghcr.io/smithorsmithy/personal-crm
-  APP_URL: https://app.linkbook.site
 
 jobs:
   build:
-    if: ${{ !inputs.image_tag }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -34,7 +30,7 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4.4.1
 
-      - uses: docker/login-action@v4.7.0
+      - uses: docker/login-action@v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -51,16 +47,20 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
+    name: Deploy to the test stand
     needs: build
-    # Runs after a successful build, or alone for a manual rollback
-    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # Each run is recorded as a deployment to "staging": success or failure
+    environment:
+      name: staging
+      url: https://test-app.linkbook.site
     permissions:
       contents: read
       packages: read
     env:
-      TAG: ${{ inputs.image_tag || github.sha }}
+      APP_URL: https://test-app.linkbook.site
+      TAG: ${{ github.sha }}
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
     steps:
@@ -87,17 +87,17 @@ jobs:
       - name: Copy deploy scripts to the server
         run: rsync -rlt --delete --chmod=D750,F750 deploy/ server:/srv/crm/deploy/
 
+      # The GHCR login goes on stdin: the script uses it only to pull the
+      # image and keeps it nowhere after that
       - name: Deploy on the server
         env:
+          REGISTRY_USER: ${{ github.actor }}
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Short-lived login so the server can pull the image; removed right after
-          printf '%s' "$REGISTRY_TOKEN" | ssh server "docker login ghcr.io -u '${{ github.actor }}' --password-stdin" >/dev/null
-          status=0
-          ssh server "/srv/crm/deploy/deploy.sh '$TAG'" || status=$?
-          ssh server "docker logout ghcr.io" >/dev/null || true
-          exit $status
+          printf '%s\n%s\n' "$REGISTRY_USER" "$REGISTRY_TOKEN" |
+            ssh server "/srv/crm/deploy/deploy.sh staging '$TAG'"
 
+      # /health is open on the test stand, the rest is behind a password
       - name: Check /health from outside
         run: |
           for attempt in 1 2 3 4 5; do

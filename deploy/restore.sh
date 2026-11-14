@@ -16,6 +16,7 @@ set -euo pipefail
 # shellcheck source-path=SCRIPTDIR source=common.sh
 source "$(dirname "$0")/common.sh"
 
+use_environment prod
 DEPLOY_USER="deploy-app"
 SELF="$BASE/deploy/restore.sh"
 
@@ -145,12 +146,7 @@ echo "==> Stop the app"
 compose stop app
 
 echo "==> Recreate the database and load the backup"
-# One transaction: if loading fails, the new database stays empty rather
-# than half-filled
-if ! compose exec -T db dropdb -U "$DB_USER" --if-exists --force "$DB_NAME" ||
-  ! compose exec -T db createdb -U "$DB_USER" -O "$DB_USER" "$DB_NAME" ||
-  ! compose exec -T db pg_restore -U "$DB_USER" -d "$DB_NAME" \
-    --single-transaction --exit-on-error --no-owner < "$FILE"; then
+if ! load_backup "$FILE"; then
   cat >&2 <<EOF
 
 Restore FAILED, see the error above.
